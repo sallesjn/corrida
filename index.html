@@ -14819,6 +14819,201 @@ if(typeof window !== 'undefined') (() => {
   }, 1000);
 })();
 
+/* =========================================================================
+   FICHA DO ALUNO REFINADA + "ÚLTIMA AULA" (presença)
+   Coleta nova (no Chromebook do aluno, vai para a nuvem com o progresso):
+     · rec.dias[AAAA-MM-DD] = { r: respostas, a: acertos, g: degraus novos }  (últimos 90 dias)
+     · deg.ini = { n, a }: as 5 primeiras respostas daquela atividade (para o "antes")
+   Ficha (substitui a antiga, mesmos blocos de unidade/descritores/erros):
+     ❗ Dificuldade · 🔁 Esqueceu · 🌱 Começando a acertar · 🔶 Aprendendo ·
+     🎓 Aprendeu jogando (antes → agora) · ✅ Já sabia · ⬜ Ainda não viu
+     + 📅 Evolução por aula (respostas, % de acerto, degraus novos)
+   Professor: abre a ficha tocando no nome no ✏️ Editar turma; na tela da turma,
+   uma linha "📅 Última aula" com presença e quem precisa de atenção.
+========================================================================= */
+const hojeKey = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const registrarSemDias = registrar;
+registrar = function(rec, fonte, q, idx, ok, frac){
+  const ev = registrarSemDias.apply(this, arguments);
+  try{
+    if(rec && fonte && POR_ID[fonte.id]){
+      const dias = rec.dias || (rec.dias = {}), k = hojeKey();
+      const dd = dias[k] || (dias[k] = { r: 0, a: 0, g: 0 });
+      dd.r++; if(ok) dd.a++; if(ev && ev.dominou) dd.g++;
+      const ks = Object.keys(dias); if(ks.length > 90) ks.sort().slice(0, ks.length - 90).forEach(x => delete dias[x]);
+      if(fonte.tipo !== 'diag'){
+        const d = rec.deg[fonte.id];
+        if(d){ const ini = d.ini || (d.ini = { n: 0, a: 0 }); if(ini.n < 5){ ini.n++; if(ok) ini.a++; } }
+      }
+    }
+  }catch(e){}
+  return ev;
+};
+
+/* classificação de cada atividade para o aluno */
+function classificar(r, d){
+  const x = r && r.deg[d.id];
+  if(!x || (!x.tot && !x.dom)) return { st: 'nao' };
+  const h = x.h || [];
+  const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+  const ult = h.slice(-10), agora = pct(ult.filter(v => v[1]).length, ult.length);
+  let antes = null;
+  if(x.ini && x.ini.n >= 3) antes = pct(x.ini.a, x.ini.n);
+  else if(h.length >= 6 && (x.totA || 0) <= 40) { const p = h.slice(0, 5); antes = pct(p.filter(v => v[1]).length, p.length); }
+  const erro = erroMaisComum(x), nErro = erro ? (x.err[erro] || 0) : 0;
+  const base = { tot: x.tot || 0, ac: x.ac || 0, erro, nErro, antes, agora, n: x.n };
+  if(x.dom){
+    const obs = (x.revErr || 0) > 0 ? ' · <span style="color:#fca5a5">errou a última revisão</span>' : '';
+    if(x.domPor === 'diag' || x.domPor === 'ano') return Object.assign(base, { st: 'sabia', txt: (x.domPor === 'diag' ? 'mostrou no diagnóstico' : 'anterior ao ano da turma') + obs });
+    if(antes !== null && antes >= 80) return Object.assign(base, { st: 'sabia', txt: `acertou de cara (${antes}% no começo)` + obs });
+    const quando = x.domEm ? ' · ' + new Date(x.domEm).toLocaleDateString('pt-BR') : '';
+    return Object.assign(base, { st: 'aprendeu', txt: (antes !== null ? `<b>${antes}% → ${agora}%</b>` : 'dominou jogando') + quando + obs });
+  }
+  if((x.revErrTot || 0) > 0) return Object.assign(base, { st: 'esqueceu', txt: 'tinha dominado e esqueceu: voltou a treinar' });
+  const trav = r.trav && r.trav.id === d.id;
+  if(h.length >= 8){
+    const ini = antes !== null ? antes : pct(h.slice(0, 5).filter(v => v[1]).length, 5);
+    if(agora - ini >= 30 && agora >= 60) return Object.assign(base, { st: 'comecando', txt: `${ini}% no começo → <b>${agora}%</b> agora` });
+  }
+  if(trav || ((x.totA || 0) >= 15 && agora < 50) || (x.quedas || 0) >= 2)
+    return Object.assign(base, { st: 'dificuldade', txt: trav ? `travou: ${esc(r.trav.motivo || '')}` : `${agora}% nas últimas ${ult.length}${x.quedas >= 2 ? ` · desceu de nível ${x.quedas}×` : ''}` });
+  if(!h.length) return Object.assign(base, { st: 'aprendendo', txt: 'só viu em revisão/prévia' });
+  return Object.assign(base, { st: 'aprendendo', txt: `nível ${['', 'fácil', 'médio', 'difícil'][x.n] || x.n} · ${agora}% nas últimas ${ult.length}` });
+}
+estado.classificar = classificar;
+const nomeCompletoDe = r => ((estado.turma && estado.turma.reais) || {})[r.nome] || r.nome || '';
+function evolucaoAulas(r, max = 8){
+  const dias = r.dias || {};
+  return Object.keys(dias).sort().reverse().slice(0, max).map(k => ({ k, ...dias[k] }));
+}
+
+fichaHTML = function(r){
+  const anoTurma = Math.min(estado.cfg.ano || 7, LIMITE.anoMax || 9);
+  const degs = CAT.filter(d => !d.retirada && !d.off && d.ano <= (LIMITE.anoMax || 9));
+  const S = degs.map(d => ({ d, s: classificar(r, d) }));
+  const ate = S.filter(x => x.d.ano <= anoTurma);
+  const nDom = ate.filter(x => r.deg[x.d.id] && r.deg[x.d.id].dom).length;
+  const barra = (a, b) => `<div class="fi-bar"><i style="width:${b ? Math.round(a / b * 100) : 0}%"></i></div><span>${a}/${b}</span>`;
+  const porUn = UNIDADES.map(u => { const L = ate.filter(x => x.d.un === u); return L.length ? `<div class="fi-un"><b>${u}</b>${barra(L.filter(x => r.deg[x.d.id] && r.deg[x.d.id].dom).length, L.length)}</div>` : ''; }).join('');
+  const erros = [];
+  Object.entries(r.deg || {}).forEach(([id, x]) => Object.entries(x.err || {}).forEach(([e, n]) => { if(POR_ID[id]) erros.push({ id, e, n }); }));
+  erros.sort((a, b) => b.n - a.n);
+  const ds = descritoresDe(r, anoTurma), cods = Object.keys(ds);
+  const fo = typeof focoDoAluno === 'function' ? focoDoAluno(r) : null;
+  const aulas = evolucaoAulas(r);
+  const ordem = (a, b) => a.d.i - b.d.i;
+  const lista = (titulo, cls, itens, dica) => itens.length ? `<div class="fi-sec"><h3>${titulo} <span>(${itens.length})</span></h3>${dica ? `<div class="fi-un2" style="margin:-4px 0 6px">${dica}</div>` : ''}<table class="fi-tab">${itens.map(({ d, s }) =>
+    `<tr class="${cls}"><td class="fi-ano">${d.ano}º</td><td><b>${esc(d.nome)}</b><div class="fi-un2">${esc(d.un)} · ${d.bncc}</div></td><td>${s.txt}${s.tot ? `<div class="fi-un2">${s.ac}/${s.tot} certas no total</div>` : ''}</td><td class="fi-erro">${s.erro && cls !== 'sabe' ? `❌ ${esc(s.erro)}${s.nErro > 1 ? ` (${s.nErro}×)` : ''}` : ''}</td></tr>`).join('')}</table></div>` : '';
+  const grupo = st => S.filter(x => x.s.st === st).sort(ordem);
+  const nv = typeof nivelDe === 'function' ? nivelDe(xpDe(r)).n : null;
+  const total = typeof acertosTotal === 'function' ? acertosTotal(r) : 0;
+  const nomeC = nomeCompletoDe(r);
+  return `<div class="fi-cab"><div><h2>👤 ${esc(nomeC)}</h2>
+      <div class="fi-sub">${nomeC !== r.nome ? `aparece como <b>${esc(r.nome)}</b>${(estado.turma.apelidos || {})[normNome(r.nome)] ? ` · apelido <b>${esc(estado.turma.apelidos[normNome(r.nome)])}</b>` : ''} · ` : ''}Turma ${esc(estado.turma.nome || '')} · ${anoTurma}º ano · ${r.resp || 0} respostas${r.plano ? ` · 📌 plano: ${r.plano.ids ? r.plano.ids.length + ' atividade(s)' : 'até o ' + r.plano.ano + 'º ano'}` : ''}</div>
+      <div class="fi-sub">${nv ? `🔥 Fogueira nível ${nv} · ` : ''}✅ ${total} acertos no total · 📅 ${Object.keys(r.dias || {}).length} aula(s) registrada(s)</div></div>
+      <div class="fi-big">${nDom}<small>/${ate.length}</small><div>degraus dominados até o ${anoTurma}º ano</div></div></div>
+    <div class="fi-grid">
+      <div class="fi-box"><h3>📅 Evolução por aula</h3>${aulas.length ? `<table class="fi-aulas"><tr><th>Aula</th><th>Resp.</th><th>Acerto</th><th>Degraus</th></tr>${aulas.map(a => `<tr><td>${new Date(a.k + 'T12:00').toLocaleDateString('pt-BR')}</td><td>${a.r}</td><td>${a.r ? Math.round(a.a / a.r * 100) : 0}%</td><td>${a.g ? '+' + a.g : '—'}</td></tr>`).join('')}</table>` : '<div class="fi-un2">Aparece a partir da próxima aula (antes disso o jogo não guardava por dia).</div>'}
+        ${fo && fo.tot ? `<div style="margin-top:6px">🎯 <b>Foco da aula</b>: ${fo.ac}/${fo.tot} (${Math.round(fo.ac / fo.tot * 100)}%)</div>` : ''}</div>
+      <div class="fi-box"><h3>Por unidade</h3>${porUn}</div>
+      <div class="fi-box"><h3>Erros mais comuns</h3>${erros.slice(0, 5).map(x => `<div>❌ <b>${esc(x.e)}</b> (${x.n}×) <span class="fi-un2">em ${esc(POR_ID[x.id].nome)}</span></div>`).join('') || '<div class="fi-un2">nenhum registrado</div>'}</div>
+      <div class="fi-box"><h3>Descritores do Paebes</h3>${cods.map(c => `<span class="fi-ds ${ds[c].st}" title="${esc(DESCRITORES[c])}">${c}</span>`).join('')}
+        <div class="fi-un2" style="margin-top:6px">verde = domina · amarelo = começou · cinza = ainda não</div></div>
+    </div>
+    ${lista('❗ Dificuldade', 'retomar', grupo('dificuldade'), 'Muitas respostas e pouco acerto, desceu de nível ou travou. Vale uma conversa ou uma explicação.')}
+    ${lista('🔁 Esqueceu', 'retomar', grupo('esqueceu'), 'Tinha dominado, mas errou a revisão: o jogo já está fazendo ele treinar de novo.')}
+    ${lista('🌱 Começando a acertar', 'comecando', grupo('comecando'), 'Ainda não dominou, mas o acerto subiu bastante: precisa só de tempo de jogo.')}
+    ${lista('🔶 Está aprendendo', 'aprendendo', grupo('aprendendo'))}
+    ${lista('🎓 Aprendeu jogando', 'aprendeu', grupo('aprendeu'), 'Errava no começo e passou a dominar.')}
+    ${lista('✅ Já sabia', 'sabe', grupo('sabia').filter(x => x.d.ano <= anoTurma))}
+    <details class="fi-sec"><summary><h3 style="display:inline">⬜ Ainda não viu (${S.filter(x => x.s.st === 'nao' && x.d.ano <= anoTurma).length} até o ${anoTurma}º ano)</h3></summary>
+      <div class="fi-un2" style="margin-top:6px">${esc(S.filter(x => x.s.st === 'nao' && x.d.ano <= anoTurma).map(x => `${x.d.ano}º ${x.d.nome}`).join(' · ')) || '—'}</div></details>`;
+};
+
+/* ---------- "Última aula" (professor) ---------- */
+function ultimaAula(){
+  const T = estado.turma; if(!T) return null;
+  const nomes = estado.cfg.nomes || [], A = T.alunos || {};
+  let dia = '';
+  Object.values(A).forEach(r => Object.keys(r.dias || {}).forEach(k => { if(k > dia) dia = k; }));
+  if(!dia) return { vazio: true };
+  const pres = [], falt = [];
+  let resp = 0, ac = 0, g = 0;
+  nomes.forEach(n => { const r = A[normNome(n)], x = r && r.dias && r.dias[dia]; if(x){ pres.push(n); resp += x.r; ac += x.a; g += x.g; } else falt.push(n); });
+  const dif = {};
+  pres.forEach(n => { const r = A[normNome(n)]; CAT.forEach(d => { const s = r.deg[d.id] && classificar(r, d); if(s && s.st === 'dificuldade') (dif[d.id] || (dif[d.id] = [])).push(n); }); });
+  const top = Object.entries(dif).sort((a, b) => b[1].length - a[1].length).slice(0, 3);
+  return { dia, hoje: dia === hojeKey(), pres, falt, resp, ac, g, top };
+}
+if(typeof window !== 'undefined') (() => {
+  const st = document.createElement('style');
+  st.textContent = `
+  #fichaBox{z-index:650}
+  .fi-tab tr.comecando td{background:rgba(34,197,94,.07)}
+  .fi-tab tr.aprendeu td{background:rgba(59,130,246,.07)}
+  .fi-aulas{width:100%;border-collapse:collapse;font-size:13px}
+  .fi-aulas th{text-align:left;color:var(--muted);font-weight:800;padding:2px 4px}
+  .fi-aulas td{padding:3px 4px;border-top:1px solid var(--line)}
+  #ulAula{margin:-4px 0 12px;font-size:13px;line-height:1.5;background:rgba(15,23,42,.45);border:1px solid var(--line);border-radius:12px;padding:8px 12px;cursor:pointer}
+  #ulAula b{color:#e2e8f0}
+  #ulAula .ul-at{color:#fca5a5}
+  .te-al .nm.te-ficha{cursor:pointer}
+  .te-al .nm.te-ficha:hover{text-decoration:underline}
+  @media print{ body.fi-imprimindo .fi-tab tr td{background:#fff !important} }`;
+  document.head.appendChild(st);
+
+  /* linha "📅 Última aula" na tela da turma */
+  function linhaUltima(){
+    const card = $('trilhaCard'); if(!card) return;
+    let el = $('ulAula');
+    const ref = $('mnTurmaBts') || $('mxAlunos') || $('nvBox');
+    if(!ref) return;
+    const u = ultimaAula();
+    if(!u || !(estado.cfg.nomes || []).length){ if(el) el.remove(); return; }
+    if(!el){ el = document.createElement('div'); el.id = 'ulAula'; el.title = 'Ver detalhes'; el.onclick = () => abrirUltima(); }
+    if(el.previousElementSibling !== ref) ref.after(el);
+    const html = u.vazio ? '📅 <b>Última aula:</b> aparece aqui depois da primeira aula com esta versão (presença, acertos e quem precisa de atenção).'
+      : `📅 <b>${u.hoje ? 'Hoje' : 'Última aula'} (${new Date(u.dia + 'T12:00').toLocaleDateString('pt-BR')})</b>: ${u.pres.length} presente${u.pres.length === 1 ? '' : 's'}${u.falt.length ? ` · ${u.falt.length} faltaram` : ''} · ${u.resp ? Math.round(u.ac / u.resp * 100) : 0}% de acerto · +${u.g} degraus`
+        + (u.top.length ? `<br><span class="ul-at">❗ ${u.top.map(([id, ns]) => `${ns.length} com dificuldade em ${esc(POR_ID[id].nome)}`).join(' · ')}</span>` : '');
+    if(el.innerHTML !== html) el.innerHTML = html;
+  }
+  function abrirUltima(){
+    const u = ultimaAula(); if(!u || u.vazio) return;
+    const nc = n => esc(((estado.turma.reais || {})[n]) || n);
+    let box = $('ulBox'); if(box) box.remove();
+    box = document.createElement('div'); box.id = 'ulBox'; box.className = 'te-fundo';
+    const A = estado.turma.alunos || {};
+    const subiu = u.pres.map(n => ({ n, g: (A[normNome(n)].dias[u.dia] || {}).g || 0, r: (A[normNome(n)].dias[u.dia] || {}).r || 0 })).sort((a, b) => b.g - a.g || b.r - a.r);
+    box.innerHTML = `<div class="te-card"><div class="te-topo"><h2>📅 ${u.hoje ? 'Hoje' : 'Aula de'} ${new Date(u.dia + 'T12:00').toLocaleDateString('pt-BR')}</h2><button class="primary" data-ulf="1">✓ Fechar</button></div>
+      <div class="te-sec" style="border:0;padding-top:0"><h3>✅ Presentes (${u.pres.length})</h3><div class="te-lista">${subiu.map(x => `<div class="te-al"><div class="nm te-ficha" data-ulfi="${esc(x.n)}">${nc(x.n)}<small>${x.r} respostas${x.g ? ` · +${x.g} degrau${x.g === 1 ? '' : 's'}` : ''}</small></div></div>`).join('')}</div></div>
+      ${u.falt.length ? `<div class="te-sec"><h3>➖ Faltaram (${u.falt.length})</h3><div style="font-size:14px">${u.falt.map(nc).join(' · ')}</div></div>` : ''}
+      ${u.top.length ? `<div class="te-sec"><h3>❗ Precisam de atenção</h3>${u.top.map(([id, ns]) => `<div style="margin-bottom:6px"><b>${esc(POR_ID[id].nome)}</b> <span class="fi-un2">(${POR_ID[id].ano}º ano)</span><br><span style="font-size:14px">${ns.map(nc).join(' · ')}</span></div>`).join('')}</div>` : ''}
+      <div style="color:var(--muted);font-size:12px;margin-top:10px">Toque no nome para abrir a ficha. Presença = entrou e respondeu no jogo nesse dia.</div></div>`;
+    document.body.appendChild(box);
+    box.onclick = e => {
+      if(e.target === box || e.target.closest('[data-ulf]')){ box.remove(); return; }
+      const f = e.target.closest('[data-ulfi]'); if(f){ box.remove(); abrirFicha(normNome(f.dataset.ulfi)); }
+    };
+  }
+  setInterval(() => { try{ linhaUltima(); }catch(e){} }, 3000);
+  const montarCartao0 = montarCartao;
+  montarCartao = function(){ const r = montarCartao0.apply(this, arguments); try{ linhaUltima(); }catch(e){} return r; };
+  try{ linhaUltima(); }catch(e){}
+
+  /* ✏️ Editar turma: tocar no nome abre a ficha */
+  document.addEventListener('click', e => {
+    const nm = e.target.closest && e.target.closest('#teBox .te-al .nm');
+    if(!nm) return;
+    const linha = nm.closest('.te-al'), b = linha && linha.querySelector('[data-trm]');
+    const r = b && b.dataset.trm, rec = r && (estado.turma.alunos || {})[normNome(r)];
+    if(!rec) return;
+    abrirFicha(normNome(r));
+  });
+  const marcar = () => document.querySelectorAll('#teBox .te-al').forEach(l => { const b = l.querySelector('[data-trm]'); const nm = l.querySelector('.nm'); if(b && nm && (estado.turma.alunos || {})[normNome(b.dataset.trm)]){ nm.classList.add('te-ficha'); nm.title = 'Abrir a ficha'; } });
+  new MutationObserver(marcar).observe(document.body, { childList: true, subtree: false });
+  setInterval(() => { if($('teBox')) marcar(); }, 700);
+})();
+
 return { CAT, POR_ID, LIMITE, dicaDe, fracEmPe, lacunas, G, C, REGRA, gerarQuestao, novoRegistro, iniciar, escolherFonte, registrar, resumo, estado, IMG, testarTrilha, alternativas };
 })();
 
