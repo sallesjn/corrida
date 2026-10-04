@@ -13091,6 +13091,68 @@ if(typeof window !== 'undefined') (() => {
   };
 })();
 
+/* =========================================================================
+   SUBIDA MAIS RÁPIDA EM DEGRAUS BEM ABAIXO DO ANO DA TURMA + REFAZER DIAGNÓSTICO
+   · Degrau 2 ou mais anos abaixo do ano da turma: domina com 5 acertos seguidos
+     no nível médio ou difícil (quem já sabe não fica preso revendo o básico).
+     Errou: segue a regra normal (3 níveis, 7 de 10 no difícil).
+   · Degraus do ano da turma e do ano anterior: regra normal, sem mudança.
+   · refazerDiagnostico(chave): o aluno faz o diagnóstico de novo na próxima vez que
+     jogar. O que ele conquistou jogando continua; só o que o diagnóstico antigo
+     "deu de presente" é refeito.
+   Bloco novo: wrapper do registrar (fica por dentro dos de desafio, medalhas e tema).
+========================================================================= */
+REGRA.rapidoSeguidos = 5;      // acertos seguidos (médio/difícil) para dominar
+REGRA.rapidoAnos = 2;          // vale para degraus N anos ou mais abaixo do ano da turma
+REGRA.rapidoTaxa = 0.8;        // e acerto geral no degrau de pelo menos 80%
+const anoDaTurma = () => {
+  try{ const pt = app.player && app.player.trilha; if(app.mode !== 'teacher' && pt && pt.cfg && pt.cfg.ano) return +pt.cfg.ano; }catch(e){}
+  return +((estado && estado.cfg && estado.cfg.ano) || 1);
+};
+const registrarSemRapido = registrar;
+registrar = function(rec, fonte, q, idx, ok, frac){
+  const ev = registrarSemRapido.apply(this, arguments);
+  try{
+    if(!ev || ev.dominou || !ok || !fonte || !POR_ID[fonte.id] || (q && q._ajuda)) return ev;
+    if(['diag', 'conforto', 'rev', 'previa', 'desafio'].includes(fonte.tipo)) return ev;
+    const d = rec.deg[fonte.id]; if(!d || d.dom) return ev;
+    if(POR_ID[fonte.id].ano > anoDaTurma() - REGRA.rapidoAnos) return ev;
+    const w = (d.h || []).slice(-REGRA.rapidoSeguidos);
+    if(w.length < REGRA.rapidoSeguidos || !w.every(x => x[0] >= 2 && x[1])) return ev;
+    const hh = d.h || [], taxa = hh.reduce((s2, x) => s2 + x[1], 0) / hh.length;
+    if(taxa < REGRA.rapidoTaxa) return ev;                     // quem oscila (acerta metade) não passa pelo atalho
+    if(w.reduce((s2, x) => s2 + (x[2] || 0), 0) / w.length >= REGRA.tempoDominio) return ev;   // mesma exigência de rapidez da regra normal (no treino não conta tempo)
+    // domina (o mesmo que a regra normal faz)
+    d.dom = 1; d.domPor = 'trilha'; d.rapido = 1; d.domEm = new Date().toISOString(); d.revUlt = rec.resp; d.revInt = REGRA.revIntervaloIni;
+    ev.dominou = fonte.id; ev.rapido = 1;
+    rec.ajudas = REGRA.ajudasPorDegrau;
+    if(rec.trav && rec.trav.id === fonte.id){ rec.trav = null; ev.destravou = fonte.id; }
+    if(fonte.id === rec.atual){
+      const prox = CAT.slice(POR_ID[fonte.id].i + 1).find(x => ativo(x) && !(rec.deg[x.id] && rec.deg[x.id].dom));
+      rec.atual = prox ? prox.id : null;
+      if(prox) degDo(rec, prox.id);
+    }
+  }catch(e){}
+  return ev;
+};
+
+/* professor: refazer o diagnóstico de um aluno */
+function refazerDiagnostico(chave){
+  const rec = estado.turma && estado.turma.alunos && estado.turma.alunos[chave];
+  if(!rec) return false;
+  Object.values(rec.deg || {}).forEach(d => { if(d.dom && (d.domPor === 'diag' || d.domPor === 'ano')){ d.dom = 0; d.domPor = ''; } });
+  rec.diag = null; rec.atual = null; delete rec.diagRes; delete rec.temaAt; delete rec.temaInfo;
+  rec.apoio = null; rec.trav = null; rec.pausa = null; rec.ultOk = [];
+  rec.rev = (rec.rev || 0) + 1000;                // a cópia do professor fica mais nova que a do Chromebook
+  try{ salvarTurmaLocal(); }catch(e){}
+  try{
+    const p = app.mode === 'teacher' && app.room && app.host.players.find(x => !x.isBot && normNome(x.name) === chave);
+    if(p){ estado.enviado[p.id] = 0; enviarTrilha(p); }
+  }catch(e){}
+  return true;
+}
+estado.refazerDiagnostico = refazerDiagnostico;
+
 
 /* =========================================================================
    GAVETA DOS ALUNOS NA CORRIDA + DESAFIOS (acrescentado)
@@ -14408,6 +14470,7 @@ if(typeof window !== 'undefined') (() => {
         const dom = rec ? CAT.filter(d => rec.deg && rec.deg[d.id] && rec.deg[d.id].dom).length : 0;
         return `<div class="te-al"><div class="nm">${esc(nomeCompleto(r))}<small>aparece como <b>${esc(r)}</b>${ap ? ` · apelido <b>${esc(ap)}</b>` : ''}${rec ? ` · ${dom} degrau${dom === 1 ? '' : 's'}` : ' · ainda não jogou'}</small></div>
           ${ap ? `<button data-tap="${esc(r)}" title="Apagar o apelido">🧽</button>` : ''}
+          ${rec && estado.refazerDiagnostico ? `<button data-tdiag="${esc(r)}" title="Refazer o diagnóstico (o que ele conquistou jogando continua)">🔎</button>` : ''}
           <button data-tren="${esc(r)}" title="Corrigir o nome">✏️</button>
           <button class="rm" data-trm="${esc(r)}" title="Tirar da turma">✕</button></div>`;
       }).join('');
@@ -14418,7 +14481,7 @@ if(typeof window !== 'undefined') (() => {
         ${nuvem ? `<div class="te-lin"><label>Código</label><span class="te-cod">${esc(T.codigo || '----')}</span><span style="color:var(--muted);font-size:12px">os alunos digitam este código (trocar: no quadro da nuvem)</span></div>` : ''}
         <div class="te-sec"><h3>👥 Alunos (${rs.length})</h3>
           <div class="te-add"><input id="teNovo" maxlength="60" placeholder="Nome completo do aluno" autocomplete="off"><button class="primary" id="teIncluir">➕ Incluir</button></div>
-          <div class="te-bts"><button class="ghost" id="teColarBt">📋 Colar vários nomes</button><button class="ghost" id="teArqBt">📂 Importar arquivo (.txt ou .csv)</button><input type="file" id="teArq" accept=".txt,.csv,text/plain,text/csv" style="display:none"></div>
+          <div class="te-bts"><button class="ghost" id="teColarBt">📋 Colar vários nomes</button><button class="ghost" id="teArqBt">📂 Importar arquivo (.txt ou .csv)</button>${rs.some(r => (T.alunos || {})[normNome(r)]) && estado.refazerDiagnostico ? '<button class="ghost" id="teDiagTodos" title="Cada aluno faz o diagnóstico de novo na próxima vez que jogar">🔎 Refazer diagnóstico de todos</button>' : ''}<input type="file" id="teArq" accept=".txt,.csv,text/plain,text/csv" style="display:none"></div>
           <div id="teColarBox" style="display:none"><textarea class="te-cola" id="teCola" placeholder="Cole aqui a lista (um nome por linha). Pode colar a coluna de nomes da lista de chamada."></textarea>
             <div class="te-bts"><button class="primary" id="teColarOk">➕ Incluir todos</button></div></div>
           <div class="te-msg" id="teMsg"></div>
@@ -14446,6 +14509,17 @@ if(typeof window !== 'undefined') (() => {
         estado.cfg.nomes = (estado.cfg.nomes || []).filter(x => x !== r);
         delete reais()[r]; delete apel()[k]; if(estado.turma.alunos) delete estado.turma.alunos[k];
         aplicar(); desenha(); msg(`✕ ${nomeCompleto(r) || r} saiu da turma`); return;
+      }
+      const dg = t.closest('[data-tdiag]');
+      if(dg){
+        const r = dg.dataset.tdiag;
+        if(!confirm(`Refazer o diagnóstico de ${nomeCompleto(r)}?\nNa próxima vez que jogar, ele responde algumas perguntas para achar o degrau certo. O que ele conquistou jogando continua.`)) return;
+        estado.refazerDiagnostico(normNome(r)); desenha(); msg(`🔎 ${r} vai refazer o diagnóstico`); return;
+      }
+      if(t.id === 'teDiagTodos'){
+        const ks = (estado.cfg.nomes || []).map(normNome).filter(k => (estado.turma.alunos || {})[k]);
+        if(!confirm(`Refazer o diagnóstico de ${ks.length} aluno(s)?\nNa próxima vez que jogarem, cada um responde algumas perguntas para achar o degrau certo. O que conquistaram jogando continua.`)) return;
+        ks.forEach(k => estado.refazerDiagnostico(k)); desenha(); msg(`🔎 ${ks.length} aluno(s) vão refazer o diagnóstico`); return;
       }
       const rn = t.closest('[data-tren]');
       if(rn){
@@ -14619,6 +14693,130 @@ if(typeof window !== 'undefined') (() => {
   // a caixa da nuvem se redesenha sozinha (salvando, lista chegando): mantém o modo compacto
   setInterval(() => { try{ if($('trilhaCard')){ cabecalho(); caixaTurma(); const d = document.querySelector('.mn-durac'); if(d) d.classList.toggle('mn-treino', estado.cfg.modo === 'treino'); } }catch(e){} }, 800);   // no treino o tempo é o do treino: some a duração da corrida
   document.addEventListener('click', e => { if(e.target.closest && e.target.closest('[data-nvabre]')) trocarAberto = false; }, true);
+})();
+
+/* =========================================================================
+   FOGUEIRA (nível do aluno) + ACERTOS NO TOTAL — tela do ALUNO
+   · A fogueira é um NÍVEL (Nv 1, 2, 3…) que só sobe, nunca zera. Ela cresce com
+     a experiência (XP), que junta tudo:
+       acerto ............................ +2  (com ajuda: +1)
+       acerto rápido na corrida (<35% do tempo) +1
+       degrau conquistado ................ +20
+       desafio vencido ................... +5
+     Do nível N para o N+1 precisa de 40 + 20×(N−1) XP (cada nível pede um pouco mais).
+     O aluno vê só o nível, o tamanho da fogueira e uma barrinha até o próximo.
+   · ✅ Acertos no total: separado, soma todas as aulas (não zera).
+   · O passo dentro do degrau atual vira bolinhas (●●○○) em vez de uma 2ª chama.
+   · Ao voltar para a aula: "Bem-vindo de volta! 🔥 Nv 5 · ✅ 348 · 🪜 12".
+   Bloco novo: wrappers (registrar, extrasPergunta, aviso, finishPlayerMatch).
+========================================================================= */
+const XP = { acerto: 2, ajuda: 1, rapido: 1, rapidoFrac: 0.35, degrau: 20, desafio: 5, base: 40, passo: 20 };
+function xpInicial(rec){                         // alunos que já jogavam: calcula pelo que já fizeram
+  let ac = 0, dom = 0;
+  Object.values(rec.deg || {}).forEach(d => { ac += d.ac || 0; if(d.dom && (d.domPor === 'trilha' || d.domPor === 'treino')) dom++; });
+  return ac * XP.acerto + dom * XP.degrau + ((rec.desafios && rec.desafios.ok) || 0) * XP.desafio;
+}
+function xpDe(rec){ if(rec && typeof rec.xp !== 'number') rec.xp = xpInicial(rec); return (rec && rec.xp) || 0; }
+function nivelDe(xp){
+  let n = 1, falta = xp, preciso = XP.base;
+  while(falta >= preciso){ falta -= preciso; n++; preciso = XP.base + XP.passo * (n - 1); }
+  return { n, dentro: falta, preciso, pct: Math.round(falta / preciso * 100) };
+}
+function acertosTotal(rec){ return Object.values((rec && rec.deg) || {}).reduce((s, d) => s + (d.ac || 0), 0); }
+const tamanhoFogueira = n => n >= 15 ? 4 : n >= 10 ? 3 : n >= 5 ? 2 : 1;   // 4 tamanhos de chama (o 15+ ganha brilho azul)
+
+/* XP sobe a cada resposta (no Chromebook do aluno; vai para o professor junto com o progresso) */
+const registrarSemXp = registrar;
+registrar = function(rec, fonte, q, idx, ok, frac){
+  if(rec && typeof rec.xp !== 'number') rec.xp = xpInicial(rec);
+  const ev = registrarSemXp.apply(this, arguments);
+  try{
+    if(rec && ok){
+      let g = q && q._ajuda ? XP.ajuda : XP.acerto;
+      if(!(q && q._ajuda) && +frac > 0 && +frac < XP.rapidoFrac) g += XP.rapido;      // treino manda frac 0: não conta rapidez
+      rec.xp += g;
+    }
+    if(rec && ev && ev.dominou) rec.xp += XP.degrau;
+    if(rec && ev && ev.desafio === 'venceu') rec.xp += XP.desafio;
+  }catch(e){}
+  return ev;
+};
+
+if(typeof window !== 'undefined') (() => {
+  const st = document.createElement('style');
+  st.textContent = `
+  .fg-box{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;vertical-align:middle}
+  .fg-nv{font-weight:900;font-size:15px;color:#fed7aa}
+  .fg-bar{display:inline-block;width:46px;height:7px;border-radius:9px;background:rgba(0,0,0,.35);overflow:hidden;vertical-align:middle}
+  .fg-bar i{display:block;height:100%;background:linear-gradient(90deg,#f97316,#facc15);border-radius:9px}
+  .fg-passos{letter-spacing:1px;font-size:11px;color:#fde68a;opacity:.9}
+  .fg-chip{font-weight:900;font-size:14px;color:#bbf7d0;background:rgba(0,0,0,.25);border-radius:999px;padding:2px 9px}
+  .fg-subiu .ch-svg{animation:chCresce 1.1s ease-out 1, chBalanca 1.6s ease-in-out 1.1s infinite}
+  .fg-volta{margin:14px auto 0;max-width:420px;background:rgba(249,115,22,.12);border:2px solid #f97316;border-radius:16px;padding:10px 14px;font-weight:900;color:#fed7aa;text-align:center}
+  .fg-volta b{color:#fff}`;
+  document.head.appendChild(st);
+
+  const recDoAluno = () => { try{ const pt = app.player && app.player.trilha; return pt && pt.rec; }catch(e){ return null; } };
+  let ultNivel = 0;
+  function caixaHTML(rec, idDegrau){
+    const xp = xpDe(rec), nv = nivelDe(xp), est = idDegrau ? estagioChama(rec, idDegrau) : 1;
+    const passos = '●'.repeat(est) + '○'.repeat(Math.max(0, 4 - est));
+    return { nv, html: chamaSVG(tamanhoFogueira(nv.n)) +
+      `<span class="fg-nv" title="Nível da fogueira: sobe com acertos, rapidez, degraus e desafios">Nv ${nv.n}</span>` +
+      `<span class="fg-bar" title="Falta pouco para o nível ${nv.n + 1}"><i style="width:${nv.pct}%"></i></span>` +
+      `<span class="fg-passos" title="Passos no degrau de agora">${passos}</span>` +
+      `<span class="ch-degraus" title="Degraus conquistados">🪜 ${resumo(rec).dominados}</span>` +
+      `<span class="fg-chip" title="Acertos no total (todas as aulas)">✅ ${acertosTotal(rec)}</span>` };
+  }
+  /* troca a chama do degrau pela fogueira (nível) */
+  const extras0 = extrasPergunta;
+  extrasPergunta = function(q){
+    const r = extras0.apply(this, arguments);
+    try{
+      const rec = recDoAluno(), box = document.querySelector('#ppTrilhaInfo .ch-box');
+      if(rec && box){
+        const c = caixaHTML(rec, rec.atual || (q && q.trilha && q.trilha.id));
+        box.classList.add('fg-box'); box.classList.remove('ch-cresceu');
+        box.title = '';
+        box.innerHTML = c.html;
+        if(ultNivel && c.nv.n > ultNivel){
+          box.classList.add('fg-subiu');
+          setTimeout(() => { try{ aviso(`🔥 Sua fogueira subiu para o <b>nível ${c.nv.n}</b>!`, 2400); if(typeof ENG !== 'undefined' && ENG.fanfarra) ENG.fanfarra(); }catch(e){} }, 300);
+        }
+        ultNivel = c.nv.n;
+      }
+    }catch(e){ console.warn('[fogueira]', e); }
+    return r;
+  };
+  /* o aviso de subir de nível dentro do degrau não fala mais em "chama" */
+  const aviso0 = aviso;
+  aviso = function(txt, ms){
+    if(/Sua chama cresceu/.test(String(txt))) txt = '🪜 Mais um passo no degrau!';
+    return aviso0.call(this, txt, ms);
+  };
+  /* tela final: nível e total */
+  const fim0 = app.finishPlayerMatch;
+  app.finishPlayerMatch = function(){
+    const r = fim0.apply(this, arguments);
+    try{
+      const rec = recDoAluno(), el = $('pdStats');
+      if(rec && el){ const nv = nivelDe(xpDe(rec)); el.insertAdjacentHTML('beforeend', `<br>🔥 Fogueira <b>nível ${nv.n}</b> · ✅ ${acertosTotal(rec)} acertos no total`); }
+    }catch(e){}
+    return r;
+  };
+  /* tela de espera: "Bem-vindo de volta" */
+  setInterval(() => {
+    try{
+      if(app.mode === 'teacher') return;
+      const w = $('playerWait'), rec = recDoAluno();
+      if(!w || !rec || !(rec.resp > 0) || w.classList.contains('hidden') || !w.offsetParent){ return; }
+      let b = $('fgVolta');
+      if(!b){ b = document.createElement('div'); b.id = 'fgVolta'; b.className = 'fg-volta'; w.appendChild(b); }
+      const nv = nivelDe(xpDe(rec)), nome = app.apelidoEsc || app.playerName || '';
+      const txt = `Bem-vindo de volta${nome ? ', <b>' + esc(nome) + '</b>' : ''}!<br>🔥 Nv ${nv.n} · ✅ ${acertosTotal(rec)} acertos · 🪜 ${resumo(rec).dominados} degraus`;
+      if(b.innerHTML !== txt) b.innerHTML = txt;
+    }catch(e){}
+  }, 1000);
 })();
 
 return { CAT, POR_ID, LIMITE, dicaDe, fracEmPe, lacunas, G, C, REGRA, gerarQuestao, novoRegistro, iniciar, escolherFonte, registrar, resumo, estado, IMG, testarTrilha, alternativas };
