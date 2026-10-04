@@ -13790,7 +13790,7 @@ if(typeof window !== 'undefined') (() => {
     const nAl = Object.keys(estado.turma.alunos || {}).length;
     return `<h4>☁️ Turmas na nuvem <small>${esc(nv.sess.email || '')} · <a href="#" id="nvSair" style="color:#bae6fd">sair</a></small></h4>
       ${cur ? `<div style="font-size:13px;margin-bottom:4px">Aberta: <b>${esc(estado.turma.nome || '(sem nome)')}</b> · <span id="nvLinha">${linhaStatus()}</span></div>
-        <div class="nv-cod">Código da turma: <b>${esc(estado.turma.codigo || '----')}</b><button id="nvTrocaCod" title="Gera um código novo (use se o código vazar)">🔄 trocar</button></div>` : `<div style="font-size:13px;margin-bottom:4px;color:#fde68a;font-weight:800">👇 Escolha a turma desta aula</div>`}
+        <div class="nv-cod">Código da turma: <b>${esc(estado.turma.codigo || '----')}</b><button id="nvTrocaCod" title="Gera um código novo (use se o código vazar)">🔁 novo código</button></div>` : `<div style="font-size:13px;margin-bottom:4px;color:#fde68a;font-weight:800">👇 Escolha a turma desta aula</div>`}
       <div class="nv-lista">${L === null ? `<div style="font-size:12px">${nv.erroLista ? `<span class="nv-er">⚠️ Não consegui ler a lista: ${esc(nv.erroLista)}</span> · tentando de novo…` : 'carregando…'}</div>` : itens.length ? itens.map(([id, t]) => `<div class="nv-item ${id === cur ? 'atual' : ''}">
           <button class="nv-abre" data-nvabre="${esc(id)}">${id === cur ? '✅ ' : ''}${esc(t.nome)}<small>${t.ano ? t.ano + 'º ano · ' : ''}${t.n || 0} aluno${t.n === 1 ? '' : 's'} · ${t.atualizado ? new Date(t.atualizado).toLocaleDateString('pt-BR') : ''}</small></button>
           <button class="nv-del" data-nvdel="${esc(id)}" title="Apagar esta turma da nuvem">🗑</button></div>`).join('') : '<div style="font-size:12px">Nenhuma turma ainda. Crie a primeira abaixo.</div>'}</div>
@@ -14324,7 +14324,7 @@ if(typeof window !== 'undefined') (() => {
     [...setup.querySelectorAll(':scope > .card')].forEach(c => {
       if(c === card) return;
       const lab = (c.querySelector('label') || {}).textContent || '';
-      if(/Duração da partida/.test(lab)){ duracao = c; return; }
+      if(/Duração/.test(lab)){ duracao = c; return; }
       dentro.appendChild(c);
     });
     if(duracao){ card.after(duracao); duracao.after(det); } else card.after(det);
@@ -14486,6 +14486,139 @@ if(typeof window !== 'undefined') (() => {
   }
   estado.abrirEditorTurma = abrirEditor;
   window.__te = { abrirEditor, limparLinha };   // para testes
+})();
+
+/* =========================================================================
+   TELA DO PROFESSOR MINIMALISTA
+   · Cada ajuste da aula vira uma linha compacta (nome à esquerda, botões à direita).
+   · Os textos de explicação saem da tela e viram dica ao passar o mouse (ⓘ).
+   · Turma aberta: uma linha só; a lista de turmas aparece em "🔄 Trocar turma".
+   · Somem: modo demonstração e "carregar turma de arquivo" (turmas vêm da nuvem).
+   Só CSS e mudança de lugar (os mesmos botões, com os mesmos cliques).
+========================================================================= */
+(function(){
+  const st = document.createElement('style');
+  st.textContent = `
+  #trilhaCard>label:first-child{display:none}
+  .mn-row{display:grid!important;grid-template-columns:118px 1fr;gap:6px 10px;align-items:center;border:none!important;background:none!important;padding:0!important;margin:0 0 10px!important}
+  .mn-row>label{margin:0!important;font-size:14px;cursor:help}
+  .mn-row>label .mn-i{opacity:.55;font-size:11px;margin-left:3px}
+  .mn-row>.seg{margin:0!important}
+  .mn-row>.seg button{padding:8px 6px;font-size:14px}
+  .mn-row .mn-esc{display:none!important}
+  .mn-row>#trRankBox{grid-column:1/-1;margin:0!important;display:grid;grid-template-columns:118px 1fr;gap:6px 10px;align-items:center}
+  .mn-row>#trRankBox.hidden{display:none}
+  #trRankBox>label{margin:0!important;font-size:14px;cursor:help}
+  #trRankBox>.seg{margin:0!important}
+  #trRankBox>.seg button{padding:8px 6px;font-size:14px}
+  .mn-durac.mn-treino{display:none!important}
+  .mn-row>select{margin:0!important}
+  .mn-foco{display:flex;align-items:center;gap:8px;min-width:0}
+  .mn-foco>div{margin:0!important;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mn-foco>button{width:auto!important;padding:7px 12px!important;white-space:nowrap}
+  .mn-grupo{border:1px solid var(--line);border-radius:14px;padding:12px 12px 2px;margin-bottom:12px;background:rgba(15,23,42,.35)}
+  .mn-grupo>.mn-tt{font-size:12px;font-weight:900;letter-spacing:.6px;color:var(--muted);margin-bottom:8px;text-transform:uppercase}
+  .mn-durac.mn-row{padding:12px!important;margin:0 0 12px!important;border:1px solid var(--line)!important;border-radius:14px;background:rgba(15,23,42,.35)!important;box-shadow:none!important}
+  .nv-box.mn-fechado .nv-lista,.nv-box.mn-fechado .nv-acoes,.nv-box.mn-fechado #nvForm,.nv-box.mn-fechado>div.nv-er{display:none}
+  .nv-box.mn-fechado h4{margin-bottom:4px}
+  #mnTurmaBts{display:flex;gap:8px;margin:-6px 0 12px}
+  #mnTurmaBts>button{flex:1;margin:0!important;padding:8px!important;font-size:14px!important;border-radius:10px}
+  #mnTrocar{background:#082f49;color:#e0f2fe;border:2px solid #38bdf8;font-weight:900;cursor:pointer}
+  #hostSetup .actions-divider{display:none}
+  #hostSetup .action-main>.title,#hostSetup .action-main>.sub{display:none}
+  #hostSetup .action-main{padding-top:14px;padding-bottom:14px}
+  #hostSetup .h-sub.mn-oculto{display:none}
+  #trCarregar,#nvSubir{display:none!important}
+  .action-demo{display:none!important}   /* modo demonstração não é mais usado */   /* turmas agora vêm da nuvem: some o "carregar arquivo" */`;
+  document.head.appendChild(st);
+
+  /* transforma um bloco em linha compacta; o texto de explicação vira dica no rótulo */
+  function linha(el, rotulo){
+    if(!el) return;
+    el.classList.add('mn-row');
+    const lab = el.querySelector(':scope > label');
+    const dicas = [...el.querySelectorAll(':scope > div')].filter(d => !d.querySelector('button,select,input') && d.id !== 'trRankBox' && !d.classList.contains('mn-foco'));
+    dicas.forEach(d => d.classList.add('mn-esc'));
+    if(lab){
+      const orig = lab.dataset.mnOrig || lab.textContent.trim();
+      lab.dataset.mnOrig = orig;
+      const txt = dicas.map(d => d.textContent.trim()).filter(Boolean).join(' ');
+      lab.title = orig + (txt ? '\n' + txt : '');
+      lab.innerHTML = esc(rotulo) + (txt || orig !== rotulo ? '<span class="mn-i">ⓘ</span>' : '');
+    }
+  }
+  function nomeTurma(){ return (estado.turma && estado.turma.nome) || ''; }
+  function cabecalho(){
+    const t = document.querySelector('#hostSetup .h-title'), s = document.querySelector('#hostSetup .h-sub');
+    if(!t) return;
+    const nm = nomeTurma();
+    const txt = nm ? `👨‍🏫 ${nm}` : '👨‍🏫 Configurar Partida';
+    if(t.textContent !== txt) t.textContent = txt;
+    if(s) s.classList.add('mn-oculto');
+  }
+  let trocarAberto = false;
+  function caixaTurma(){
+    const nvb = $('nvBox'); if(!nvb) return;
+    const aberta = !!(estado.nuvemAtiva && estado.nuvemAtiva());
+    nvb.classList.toggle('mn-fechado', aberta && !trocarAberto);
+    let row = $('mnTurmaBts');
+    const la = $('mxAlunos');
+    if(!row){ row = document.createElement('div'); row.id = 'mnTurmaBts'; }
+    if(nvb.nextElementSibling !== row) nvb.after(row);
+    if(la && la.parentElement !== row) row.prepend(la);
+    let tb = $('mnTrocar');
+    if(aberta){
+      if(!tb){ tb = document.createElement('button'); tb.id = 'mnTrocar'; tb.onclick = () => { trocarAberto = !trocarAberto; caixaTurma(); }; row.appendChild(tb); }
+      tb.textContent = trocarAberto ? '▴ Fechar lista' : '🔄 Trocar turma';
+    } else if(tb) tb.remove();
+  }
+  function organizar(){
+    const card = $('trilhaCard'); if(!card) return;
+    cabecalho();
+    caixaTurma();
+    // grupo "Aula de hoje": sala, foco, tema, desafios, duração
+    const op = $('trOpts'); if(!op) return;
+    let g = $('mnAula');
+    if(!g){ g = document.createElement('div'); g.id = 'mnAula'; g.className = 'mn-grupo'; g.innerHTML = '<div class="mn-tt">Aula de hoje</div>'; }
+    if(g.parentElement !== op) op.prepend(g);
+    const desaf = $('trDesafio') && $('trDesafio').closest('#trOpts > div');
+    [$('trModoBox'), $('trFocoBox'), $('trTemaBox'), desaf].forEach(el => { if(el && el.parentElement !== g) g.appendChild(el); });
+    linha($('trModoBox'), '🏁 Sala');
+    const rb = $('trRankBox');
+    if(rb) rb.querySelectorAll(':scope > label').forEach(l => {
+      const o = l.dataset.mnOrig || l.textContent.trim(); l.dataset.mnOrig = o; l.title = o;
+      l.innerHTML = (/telão/i.test(o) ? '🏆 Telão' : /tempo/i.test(o) ? '⏳ Tempo' : esc(o)) + '<span class="mn-i">ⓘ</span>';
+    });
+    // foco: "nenhuma" + botão na mesma linha
+    const fb = $('trFocoBox');
+    if(fb){
+      let w = fb.querySelector('.mn-foco');
+      const agora = $('trFocoTxt') && $('trFocoTxt').parentElement, bt = $('trFocoBt');
+      if(!w && agora && bt){ w = document.createElement('div'); w.className = 'mn-foco'; agora.before(w); w.appendChild(agora); w.appendChild(bt); bt.textContent = '✎ escolher'; bt.title = 'Escolher as atividades que quero verificar hoje'; }
+      linha(fb, '🎯 Foco');
+    }
+    linha($('trTemaBox'), '📚 Tema');
+    if(desaf){
+      linha(desaf, '⭐ Desafios');
+      const nomes = { '0': 'Não', '0.7': 'Acerta 70%+', '0.8': 'Acerta 80%+' };
+      desaf.querySelectorAll('#trDesafio button').forEach(b => { if(nomes[b.dataset.v]) b.textContent = nomes[b.dataset.v]; });
+    }
+    // duração da partida entra no grupo
+    const setup = $('hostSetup');
+    const dur = setup && [...setup.querySelectorAll('.card')].find(c => /Duração da partida/.test((c.querySelector('label') || {}).textContent || '') || c.classList.contains('mn-durac'));
+    if(dur){ dur.classList.add('mn-durac'); linha(dur, '⏱️ Duração'); }   // fica fora do cartão (o cartão é refeito às vezes)
+
+  }
+  const montarCartao0 = montarCartao;
+  montarCartao = function(){
+    const r = montarCartao0.apply(this, arguments);
+    try{ organizar(); }catch(e){ console.error(e); }
+    return r;
+  };
+  try{ organizar(); }catch(e){ console.error(e); }
+  // a caixa da nuvem se redesenha sozinha (salvando, lista chegando): mantém o modo compacto
+  setInterval(() => { try{ if($('trilhaCard')){ cabecalho(); caixaTurma(); const d = document.querySelector('.mn-durac'); if(d) d.classList.toggle('mn-treino', estado.cfg.modo === 'treino'); } }catch(e){} }, 800);   // no treino o tempo é o do treino: some a duração da corrida
+  document.addEventListener('click', e => { if(e.target.closest && e.target.closest('[data-nvabre]')) trocarAberto = false; }, true);
 })();
 
 return { CAT, POR_ID, LIMITE, dicaDe, fracEmPe, lacunas, G, C, REGRA, gerarQuestao, novoRegistro, iniciar, escolherFonte, registrar, resumo, estado, IMG, testarTrilha, alternativas };
