@@ -15014,6 +15014,81 @@ if(typeof window !== 'undefined') (() => {
   setInterval(() => { if($('teBox')) marcar(); }, 700);
 })();
 
+/* =========================================================================
+   ALUNO: SEM "PERGUNTA RELÂMPAGO" + HISTÓRICO NO PRÓPRIO COMPUTADOR
+   · Com a trilha ligada, a 1ª pergunta às vezes aparecia por 1–2 s e trocava
+     (era a pergunta de reserva, antes da trilha do aluno chegar). Agora, até a
+     pergunta da trilha chegar, o cartão mostra "⏳ Preparando sua trilha…"
+     (no máximo 4 s; depois disso mostra a que tiver).
+   · Botão "📜" na barra do aluno: abre as últimas 20 questões que ele respondeu
+     neste computador (certa em verde, marcada em vermelho, código da atividade).
+   Bloco novo: wrappers (pub, onMessage) e um botão.
+========================================================================= */
+if(typeof window !== 'undefined') (() => {
+  const st = document.createElement('style');
+  st.textContent = `
+  body.tr-esperando #ppQuestionCard>*,body.tr-esperando #ppOptions{visibility:hidden}
+  body.tr-esperando #ppQuestionCard{position:relative;min-height:120px}
+  body.tr-esperando #ppQuestionCard::after{content:'⏳ Preparando sua trilha…';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#93c5fd}
+  #ppHistBt{cursor:pointer;background:rgba(0,0,0,.25);border:1px solid var(--line);color:var(--text);border-radius:999px;padding:3px 10px;font-weight:800;font-size:14px}
+  #ppHistBox .hs-grade{margin-top:8px}`;
+  document.head.appendChild(st);
+
+  /* professor avisa no estado da sala se a trilha está ligada (instala por fora do envio aos servidores reserva) */
+  setTimeout(() => {
+    const pub0 = app.pub;
+    app.pub = function(topic, obj, retain){
+      if(this.mode === 'teacher' && obj && obj.type === 'state' && /\/tostate$/.test(topic)) obj = Object.assign({}, obj, { trilhaOn: !!(estado.cfg && estado.cfg.on) });
+      return pub0.call(this, topic, obj, retain);
+    };
+  }, 0);
+  const onMessage0 = app.onMessage;
+  app.onMessage = function(topic, msg){
+    if(this.mode !== 'teacher' && msg && msg.type === 'state' && /\/tostate$/.test(topic) && msg.trilhaOn !== undefined){
+      this._trilhaOn = !!msg.trilhaOn;
+      const pt = this.player && this.player.trilha;
+      if(msg.trilhaOn && msg.phase === 'playing' && !(pt && pt.rec)){ document.body.classList.add('tr-esperando'); esperaDesde = Date.now(); }   // antes de a 1ª pergunta aparecer
+    }
+    return onMessage0.apply(this, arguments);
+  };
+
+  /* espera a pergunta da trilha (no máximo 4 s) */
+  let qVista = null, desde = 0;
+  var esperaDesde = 0;
+  setInterval(() => {
+    try{
+      let esperar = false;
+      if(app.mode !== 'teacher' && app._trilhaOn && app.player && app.player.phase === 'playing'){
+        const q = app.player.currentQuestion;
+        if(q !== qVista){ qVista = q; desde = Date.now(); }
+        esperar = !!((q ? !q.trilha : true) && Date.now() - Math.max(desde, esperaDesde) < 4000) && (!!q || !!esperaDesde);
+      } else if(esperaDesde && Date.now() - esperaDesde < 4000 && app.mode !== 'teacher' && app._trilhaOn){ esperar = true; }
+      document.body.classList.toggle('tr-esperando', esperar);
+    }catch(e){}
+  }, 30);
+
+  /* 📜 histórico no computador do aluno */
+  function abrirMeuHistorico(){
+    let box = $('ppHistBox'); if(box) box.remove();
+    box = document.createElement('div'); box.id = 'ppHistBox'; box.className = 'cat-fundo';
+    const l = histLocal().slice().reverse();
+    box.innerHTML = `<div class="cat-topo"><h2>📜 Minhas últimas questões${app.playerName ? ' · ' + esc(app.apelidoEsc || app.playerName) : ''}</h2><div class="dir"><button class="ab" data-fechar="1">✕ Fechar</button></div></div>
+      <div class="hs-txt">A mais recente aparece primeiro. Se achar que uma questão está errada, mostre ao professor o <b>código</b>.</div>
+      ${l.length ? `<div class="hs-grade">${l.map(histCard).join('')}</div>` : '<div class="hs-txt">Nenhuma questão respondida neste computador ainda.</div>'}`;
+    document.body.appendChild(box);
+    box.onclick = e => { if(e.target.closest('[data-fechar]')) box.remove(); };
+  }
+  function botao(){
+    const bar = document.querySelector('#playerPlay .pp-stats'); if(!bar || $('ppHistBt')) return;
+    const b = document.createElement('button'); b.id = 'ppHistBt'; b.type = 'button'; b.title = 'Minhas últimas questões'; b.textContent = '📜';
+    b.onclick = e => { e.preventDefault(); e.stopPropagation(); abrirMeuHistorico(); };
+    bar.appendChild(b);
+  }
+  botao(); setInterval(botao, 2000);
+  document.addEventListener('keydown', e => { if(e.key === 'Escape' && $('ppHistBox')) $('ppHistBox').remove(); });
+  estado.abrirMeuHistorico = abrirMeuHistorico;
+})();
+
 return { CAT, POR_ID, LIMITE, dicaDe, fracEmPe, lacunas, G, C, REGRA, gerarQuestao, novoRegistro, iniciar, escolherFonte, registrar, resumo, estado, IMG, testarTrilha, alternativas };
 })();
 
