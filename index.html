@@ -9657,6 +9657,176 @@ C.funcao9 = m => {
   return `x = ${z[0] < 0 ? '−' + (-z[0]) : z[0]} e x = ${z[1] < 0 ? '−' + (-z[1]) : z[1]}`;
 };
 
+/* =========================================================================
+   EF06MA24 — PROBLEMAS COM GRANDEZAS (comprimento, massa, tempo, temperatura,
+   capacidade, área e volume sem fórmulas), em situações do dia a dia.
+   Nível 1: uma conversão + uma conta (copos na garrafa, pacotes, pedaços de fita,
+            horário de chegada, diferença de temperatura).
+   Nível 2: duas etapas (quanto tempo durou, garrafas para a festa, receita em kg,
+            cubinhos na caixa).
+   Nível 3: várias etapas (quanto falta na corrida, fim das aulas com intervalo,
+            lajotas no piso).
+   Conferência (C) por outro caminho: contagem por subtração repetida, relógio
+   andando minuto a minuto etc. Usa o padrão do lote 8º/9º (alt8, nD, fmtDec).
+========================================================================= */
+const hm6 = min => { min = ((min % 1440) + 1440) % 1440; return `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`; };
+const dur6 = min => min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ''}` : `${min} min`;
+const un6 = (v, s, p) => `${nD(v)} ${Math.abs(v) === 1 ? s : p}`;
+const quantos6 = (total, parte) => { let k = 0, r = total; while(r >= parte - 1e-9){ r -= parte; k++; } return { k, r }; };   // conta tirando de parte em parte
+G.grandezas6 = n => {
+  const tipo = pick(n === 1 ? ['copos', 'pacotes', 'fita', 'chegada', 'temp'] : n === 2 ? ['duracao', 'festa', 'receita', 'cubos'] : ['corrida', 'aulas', 'lajotas']);
+  if(tipo === 'copos'){
+    let L, c; do{ L = pick([1, 1.5, 2, 2.5, 3]); c = pick([200, 250, 300, 500]); } while((L * 1000) % c);
+    const certa = L * 1000 / c;
+    const aa = alt8({ t: un6(certa, 'copo', 'copos'), v: certa }, [
+      { t: un6(L * 100 / c, 'copo', 'copos'), v: L * 100 / c, erro: 'usou 1 L = 100 mL' },
+      { t: un6(L * 10000 / c, 'copo', 'copos'), v: L * 10000 / c, erro: 'usou 1 L = 10 000 mL' },
+      { t: un6(certa + 1, 'copo', 'copos'), v: certa + 1, erro: 'errou a divisão' },
+      { t: un6(certa - 1, 'copo', 'copos'), v: certa - 1, erro: 'errou a divisão' },
+      { t: un6(Math.floor(L) * 1000 / c, 'copo', 'copos'), v: Math.floor(L) * 1000 / c, erro: 'esqueceu a parte decimal dos litros' }].filter(e => e.v > 0 && Number.isInteger(e.v) && e.v !== certa));
+    return { ...aa, text: `Uma garrafa tem ${nD(L)} L de suco. Cada copo leva ${c} mL. Quantos copos ela enche?`, meta: { k: 'div', tot: L * 1000, parte: c, s: 'copo', p: 'copos' }, chave: `g6c${L}-${c}` };
+  }
+  if(tipo === 'pacotes'){
+    let B, p; do{ B = pick([1, 2, 3, 5]); p = pick([100, 200, 250, 500]); } while((B * 1000) % p || B * 1000 / p < 2);
+    const certa = B * 1000 / p;
+    const prod = pick(['de café', 'de farinha', 'de arroz', 'de açúcar', 'de feijão']);
+    const aa = alt8({ t: un6(certa, 'pacote', 'pacotes'), v: certa }, [
+      { t: un6(B * 100 / p, 'pacote', 'pacotes'), v: B * 100 / p, erro: 'usou 1 kg = 100 g' },
+      { t: un6(B * 10000 / p, 'pacote', 'pacotes'), v: B * 10000 / p, erro: 'usou 1 kg = 10 000 g' },
+      { t: un6(certa * 2, 'pacote', 'pacotes'), v: certa * 2, erro: 'errou a divisão' },
+      { t: un6(certa + 1, 'pacote', 'pacotes'), v: certa + 1, erro: 'errou a divisão' },
+      { t: un6(certa - 1, 'pacote', 'pacotes'), v: certa - 1, erro: 'errou a divisão' }].filter(e => e.v > 0 && Number.isInteger(e.v) && e.v !== certa));
+    return { ...aa, text: `Uma loja quer separar ${B} kg ${prod} em pacotes de ${p} g. Quantos pacotes vai fazer?`, meta: { k: 'div', tot: B * 1000, parte: p, s: 'pacote', p: 'pacotes' }, chave: `g6p${B}-${p}` };
+  }
+  if(tipo === 'fita'){
+    let A, p; do{ A = pick([2, 3, 4, 5, 6]); p = pick([10, 20, 25, 40, 50]); } while((A * 100) % p);
+    const certa = A * 100 / p;
+    const aa = alt8({ t: un6(certa, 'pedaço', 'pedaços'), v: certa }, [
+      { t: un6(A * 10 / p, 'pedaço', 'pedaços'), v: A * 10 / p, erro: 'usou 1 m = 10 cm' },
+      { t: un6(A * 1000 / p, 'pedaço', 'pedaços'), v: A * 1000 / p, erro: 'usou 1 m = 1 000 cm' },
+      { t: un6(certa + 1, 'pedaço', 'pedaços'), v: certa + 1, erro: 'errou a divisão' },
+      { t: un6(certa - 1, 'pedaço', 'pedaços'), v: certa - 1, erro: 'errou a divisão' },
+      { t: un6(certa * 2, 'pedaço', 'pedaços'), v: certa * 2, erro: 'errou a divisão' }].filter(e => e.v > 0 && Number.isInteger(e.v) && e.v !== certa));
+    return { ...aa, text: `Uma fita de ${A} m vai ser cortada em pedaços de ${p} cm. Quantos pedaços saem?`, meta: { k: 'div', tot: A * 100, parte: p, s: 'pedaço', p: 'pedaços' }, chave: `g6f${A}-${p}` };
+  }
+  if(tipo === 'chegada'){
+    const ini = rnd(6, 17) * 60 + rnd(0, 11) * 5, d = rnd(0, 3) * 60 + rnd(1, 11) * 5;
+    if((ini % 60) + (d % 60) < 60) return G.grandezas6(n);                  // só os que "passam da hora" (é aí que se erra)
+    const certa = ini + d;
+    const sem = Math.floor(ini / 60) * 60 + Math.floor(d / 60) * 60;      // horas somadas, minutos somados sem virar hora
+    const minSoma = (ini % 60) + (d % 60);
+    const aa = alt8({ t: hm6(certa), v: certa }, [
+      { t: `${Math.floor(sem / 60)}h${minSoma}`, v: null, erro: 'somou os minutos e não transformou 60 min em 1 h' },
+      { t: hm6(certa + 60), v: certa + 60, erro: 'somou 1 hora a mais' },
+      { t: hm6(certa - 60), v: certa - 60, erro: 'esqueceu de passar 1 hora' },
+      { t: hm6(certa + 40), v: certa + 40, erro: 'contou a hora com 100 minutos' },
+      { t: hm6(ini + Math.floor(d / 60) * 60), v: ini + Math.floor(d / 60) * 60, erro: 'somou só as horas' }]);
+    return { ...aa, text: `Um ônibus sai às ${hm6(ini)} e a viagem dura ${dur6(d)}. A que horas ele chega?`, meta: { k: 'chegada', ini, d }, chave: `g6h${ini}-${d}` };
+  }
+  if(tipo === 'temp'){
+    const mn = rnd(12, 21), mx = rnd(mn + 4, 36), certa = mx - mn;
+    const cid = pick(['Vitória', 'João Neiva', 'Colatina', 'Linhares', 'Aracruz', 'Ibiraçu']);
+    const aa = alt8({ t: `${certa} °C`, v: certa }, [
+      { t: `${mx + mn} °C`, v: mx + mn, erro: 'somou as temperaturas' },
+      { t: `${certa + 1} °C`, v: certa + 1, erro: 'errou a subtração' },
+      { t: `${certa - 1} °C`, v: certa - 1, erro: 'errou a subtração' },
+      { t: `${certa + 10} °C`, v: certa + 10, erro: 'errou a subtração' }]);
+    return { ...aa, text: `Em ${cid}, a temperatura mínima do dia foi ${mn} °C e a máxima foi ${mx} °C. Quantos graus a temperatura subiu?`, meta: { k: 'temp', mn, mx }, chave: `g6t${mn}-${mx}` };
+  }
+  if(tipo === 'duracao'){
+    const ini = rnd(7, 16) * 60 + rnd(0, 11) * 5, d = rnd(1, 3) * 60 + rnd(1, 11) * 5, fim = ini + d;
+    if((fim % 60) >= (ini % 60)) return G.grandezas6(n);                  // só quando precisa "emprestar" 1 hora
+    const evento = pick(['Um filme começou', 'Uma partida de futebol começou', 'Uma viagem começou', 'Uma prova começou', 'Um show começou']);
+    const hd = Math.floor(fim / 60) - Math.floor(ini / 60), md = (fim % 60) - (ini % 60);   // subtração "de cabeça" errada
+    const aa = alt8({ t: dur6(d), v: d }, [
+      { t: `${hd} h ${md + 40} min`, v: null, erro: 'emprestou 1 hora como se fosse 100 minutos' },
+      { t: dur6(d + 60), v: d + 60, erro: 'não tirou a hora emprestada' },
+      { t: `${hd} h ${Math.abs(md)} min`, v: null, erro: 'subtraiu os minutos ao contrário' },
+      { t: dur6(d - 5), v: d - 5, erro: 'contou 5 minutos a menos' },
+      { t: dur6(d + 5), v: d + 5, erro: 'contou 5 minutos a mais' }].filter(e => e.v == null || e.v > 0));
+    return { ...aa, text: `${evento} às ${hm6(ini)} e terminou às ${hm6(fim)}. Quanto tempo durou?`, meta: { k: 'duracao', ini, fim }, chave: `g6d${ini}-${fim}` };
+  }
+  if(tipo === 'festa'){
+    const N = rnd(10, 40), m = pick([200, 250, 300]), G2 = 2000, tot = N * m;
+    if(tot % G2 === 0) return G.grandezas6(n);                              // queremos o "arredonda para cima"
+    const certa = Math.ceil(tot / G2);
+    const aa = alt8({ t: un6(certa, 'garrafa', 'garrafas'), v: certa }, [
+      { t: un6(Math.floor(tot / G2), 'garrafa', 'garrafas'), v: Math.floor(tot / G2), erro: 'não arredondou para cima: faltaria refrigerante' },
+      { t: un6(Math.ceil(tot / 200), 'garrafa', 'garrafas'), v: Math.ceil(tot / 200), erro: 'usou 2 L = 200 mL' },
+      { t: un6(Math.ceil(tot / 1000), 'garrafa', 'garrafas'), v: Math.ceil(tot / 1000), erro: 'contou os litros, não as garrafas de 2 L' },
+      { t: un6(certa + 1, 'garrafa', 'garrafas'), v: certa + 1, erro: 'comprou uma garrafa a mais' },
+      { t: un6(N, 'garrafa', 'garrafas'), v: N, erro: 'uma garrafa por pessoa' }].filter(e => e.v > 0 && e.v !== certa));
+    return { ...aa, text: `Numa festa com ${N} pessoas, cada uma vai tomar ${m} mL de refrigerante. No mínimo, quantas garrafas de 2 L precisam comprar?`, meta: { k: 'festa', N, m }, chave: `g6r${N}-${m}` };
+  }
+  if(tipo === 'receita'){
+    const k = rnd(2, 9), g = pick([150, 200, 250, 300, 350, 400, 450, 500, 750]), tot = k * g;
+    const item = pick([['bolos', 'farinha'], ['pães', 'farinha'], ['tortas', 'açúcar'], ['pizzas', 'queijo']]);
+    const aa = alt8({ t: `${nD(tot / 1000)} kg`, v: tot / 1000 }, [
+      { t: `${nD(tot / 100)} kg`, v: tot / 100, erro: 'usou 1 kg = 100 g' },
+      { t: `${nD(tot / 10000)} kg`, v: tot / 10000, erro: 'usou 1 kg = 10 000 g' },
+      { t: `${nD(tot)} kg`, v: tot, erro: 'não converteu os gramas em quilos' },
+      { t: `${nD((k + g) / 1000)} kg`, v: (k + g) / 1000, erro: 'somou em vez de multiplicar' },
+      { t: `${nD(g / 1000)} kg`, v: g / 1000, erro: 'calculou para um só' }]);
+    return { ...aa, text: `Cada um dos ${item[0]} leva ${g} g de ${item[1]}. Quantos quilos de ${item[1]} são necessários para fazer ${k} ${item[0]}?`, meta: { k: 'receita', n: k, g }, chave: `g6k${k}-${g}` };
+  }
+  if(tipo === 'cubos'){
+    const a = rnd(2, 6), b = rnd(2, 6), c = rnd(2, 5), certa = a * b * c;
+    const aa = alt8({ t: un6(certa, 'cubinho', 'cubinhos'), v: certa }, [
+      { t: un6(a * b, 'cubinho', 'cubinhos'), v: a * b, erro: 'contou só uma camada' },
+      { t: un6(a + b + c, 'cubinho', 'cubinhos'), v: a + b + c, erro: 'somou as medidas' },
+      { t: un6(a * b + c, 'cubinho', 'cubinhos'), v: a * b + c, erro: 'somou as camadas em vez de multiplicar' },
+      { t: un6(2 * (a * b + a * c + b * c), 'cubinho', 'cubinhos'), v: 2 * (a * b + a * c + b * c), erro: 'contou os quadradinhos da superfície' },
+      { t: un6(certa + a * b, 'cubinho', 'cubinhos'), v: certa + a * b, erro: 'contou uma camada a mais' }].filter(e => e.v !== certa));
+    return { ...aa, text: `Uma caixa é enchida com cubinhos de 1 cm. No fundo cabem ${a} fileiras de ${b} cubinhos, e a caixa tem ${c} camadas iguais a essa. Quantos cubinhos cabem na caixa?`, meta: { k: 'cubos', a, b, c }, chave: `g6v${a}${b}${c}` };
+  }
+  if(tipo === 'corrida'){
+    const meta = pick([3, 5, 10]), pista = pick([400, 500]);
+    const v = rnd(2, Math.floor(meta * 1000 / pista) - 1), feito = v * pista, falta = meta * 1000 - feito;
+    const aa = alt8({ t: `${nD(falta / 1000)} km`, v: falta / 1000 }, [
+      { t: `${nD(falta / 100)} km`, v: falta / 100, erro: 'usou 1 km = 100 m' },
+      { t: `${nD(feito / 1000)} km`, v: feito / 1000, erro: 'calculou o que já correu, não o que falta' },
+      { t: `${nD(meta - v)} km`, v: meta - v, erro: 'subtraiu o número de voltas dos quilômetros' },
+      { t: `${nD((meta * 1000 - v * 100) / 1000)} km`, v: (meta * 1000 - v * 100) / 1000, erro: 'contou cada volta como 100 m' },
+      { t: `${nD(falta / 1000 + 1)} km`, v: falta / 1000 + 1, erro: 'errou a subtração' }].filter(e => e.v > 0));
+    return { ...aa, text: `Numa pista de ${pista} m, uma atleta já deu ${v} voltas. Ela quer correr ${meta} km ao todo. Quanto ainda falta correr?`, meta: { k: 'corrida', meta, pista, v }, chave: `g6m${meta}-${pista}-${v}` };
+  }
+  if(tipo === 'aulas'){
+    const ini = pick([7 * 60, 7 * 60 + 10, 7 * 60 + 30, 13 * 60, 13 * 60 + 10]), na = rnd(4, 6), aula = pick([45, 50]), iv = pick([15, 20]);
+    const certa = ini + na * aula + iv;
+    const aa = alt8({ t: hm6(certa), v: certa }, [
+      { t: hm6(ini + na * aula), v: ini + na * aula, erro: 'esqueceu o intervalo' },
+      { t: hm6(ini + na * 60 + iv), v: ini + na * 60 + iv, erro: 'contou cada aula como 1 hora' },
+      { t: hm6(certa + iv), v: certa + iv, erro: 'contou o intervalo duas vezes' },
+      { t: hm6(ini + (na - 1) * aula + iv), v: ini + (na - 1) * aula + iv, erro: 'contou uma aula a menos' },
+      { t: hm6(certa + 10), v: certa + 10, erro: 'errou a soma dos minutos' }]);
+    return { ...aa, text: `As aulas começam às ${hm6(ini)}. São ${na} aulas de ${aula} min e um intervalo de ${iv} min depois da 3ª aula. A que horas termina a última aula?`, meta: { k: 'aulas', ini, na, aula, iv }, chave: `g6a${ini}-${na}-${aula}-${iv}` };
+  }
+  // lajotas
+  const L = rnd(2, 6), Cm = rnd(2, 6), laj = pick([50, 25]), por = 100 / laj, certa = L * por * Cm * por;
+  const aa = alt8({ t: un6(certa, 'lajota', 'lajotas'), v: certa }, [
+    { t: un6(L * Cm, 'lajota', 'lajotas'), v: L * Cm, erro: 'contou uma lajota por metro quadrado' },
+    { t: un6(L * Cm * por, 'lajota', 'lajotas'), v: L * Cm * por, erro: 'converteu só um dos lados' },
+    { t: un6((L + Cm) * 2 * por, 'lajota', 'lajotas'), v: (L + Cm) * 2 * por, erro: 'contou só as lajotas da beirada (perímetro)' },
+    { t: un6(L * Cm * 100 / laj, 'lajota', 'lajotas'), v: L * Cm * 100 / laj, erro: 'dividiu a área pelo lado da lajota' },
+    { t: un6(certa + L * por, 'lajota', 'lajotas'), v: certa + L * por, erro: 'contou uma fileira a mais' }].filter(e => e.v !== certa));
+  return { ...aa, text: `O piso de uma sala tem ${L} m por ${Cm} m. Ele vai ser coberto com lajotas quadradas de ${laj} cm de lado. Quantas lajotas são necessárias?`, meta: { k: 'lajotas', L, C: Cm, laj }, chave: `g6l${L}-${Cm}-${laj}` };
+};
+/* conferência por outro caminho */
+C.grandezas6 = m => {
+  const pl = (v, s, p) => `${nD(v)} ${v === 1 ? s : p}`;
+  if(m.k === 'div'){ const r = quantos6(m.tot, m.parte); return pl(r.k, m.s, m.p); }
+  if(m.k === 'chegada'){ let h = Math.floor(m.ini / 60), mi = m.ini % 60; for(let i = 0; i < m.d; i++){ mi++; if(mi === 60){ mi = 0; h = (h + 1) % 24; } } return `${h}h${String(mi).padStart(2, '0')}`; }
+  if(m.k === 'temp'){ let t = m.mn, k = 0; while(t < m.mx){ t++; k++; } return `${k} °C`; }
+  if(m.k === 'duracao'){ let t = m.ini, k = 0; while(t < m.fim){ t++; k++; } const h = Math.floor(k / 60), r = k - h * 60; return h ? `${h} h${r ? ` ${r} min` : ''}` : `${r} min`; }
+  if(m.k === 'festa'){ let litros = 0, g = 0; while(litros < m.N * m.m){ litros += 2000; g++; } return pl(g, 'garrafa', 'garrafas'); }
+  if(m.k === 'receita'){ let s = 0; for(let i = 0; i < m.n; i++) s += m.g; return `${nD(s / 1000)} kg`; }
+  if(m.k === 'cubos'){ let k = 0; for(let i = 0; i < m.a; i++) for(let j = 0; j < m.b; j++) for(let l = 0; l < m.c; l++) k++; return pl(k, 'cubinho', 'cubinhos'); }
+  if(m.k === 'corrida'){ let falta = m.meta * 1000; for(let i = 0; i < m.v; i++) falta -= m.pista; return `${nD(falta / 1000)} km`; }
+  if(m.k === 'aulas'){ let t = m.ini; for(let i = 1; i <= m.na; i++){ t += m.aula; if(i === 3) t += m.iv; } return `${Math.floor(t / 60)}h${String(t % 60).padStart(2, '0')}`; }
+  if(m.k === 'lajotas'){ const fx = Math.round(m.L * 100 / m.laj), fy = Math.round(m.C * 100 / m.laj); let k = 0; for(let i = 0; i < fx; i++) k += fy; return pl(k, 'lajota', 'lajotas'); }
+  return '?';
+};
+
 
 /* =========================================================================
    CATÁLOGO DA TRILHA (ordem = ordem de subida)
@@ -10444,6 +10614,34 @@ Object.assign(DICA, {
 DICA.tiposAng6 = m => m.tipo === 'relogio' ? 'Cada número do relógio vale 30°. Conte quantos números há entre os ponteiros e multiplique por 30. Menor que 90° = agudo; 90° = reto; entre 90° e 180° = obtuso; 180° = raso.' : 'Compare com o canto de uma folha (90°): menor = AGUDO; igual (tem o quadradinho) = RETO; maior = OBTUSO; os lados formando uma reta (180°) = RASO.';
 
 DICA.abreAng6 = m => m.graus ? `Ponha o 0 do transferidor no lado azul e vá abrindo até o ${m.graus}. Leia a escala que começa no 0 do lado azul.` : ({ agudo: 'Agudo: abra um pouco, menos que o canto de uma folha (menos de 90°).', reto: 'Reto: abra até formar um canto de folha (90°), um lado de pé e o outro deitado.', obtuso: 'Obtuso: abra mais que o canto de uma folha, mas sem formar uma reta (entre 90° e 180°).', raso: 'Raso: abra até os dois lados formarem uma linha reta (180°).' })[m.alvo] || '';
+
+/* =========================================================================
+   EF06MA24 — degrau "Problemas com grandezas" no fim do 6º ano da trilha.
+   Só acrescenta: entra no catálogo depois do último degrau do 6º ano
+   (os índices são renumerados; o progresso dos alunos é por nome do degrau).
+========================================================================= */
+(function(){
+  if(typeof G.grandezas6 !== 'function' || POR_ID.grandezas6) return;
+  const d = { id: 'grandezas6', ano: 6, un: 'Grandezas e medidas', bncc: 'EF06MA24', nome: 'Problemas com grandezas (medidas e tempo)', t: 1.7 };
+  let pos = -1; CAT.forEach((x, i) => { if(x.ano <= 6) pos = i; });
+  CAT.splice(pos + 1, 0, d);
+  CAT.forEach((x, i) => { x.i = i; x.ordem = i; });
+  d.anoOrig = d.ano; d.prov = false;
+  POR_ID[d.id] = d;
+  TYPE_LABELS[d.id] = `${d.ano}º · ${d.nome}`; TYPE_TIME_FACTOR[d.id] = d.t;
+  DICA.grandezas6 = m => ({
+    div: 'Passe tudo para a mesma unidade (1 L = 1 000 mL · 1 kg = 1 000 g · 1 m = 100 cm) e veja quantas vezes a parte cabe no total.',
+    chegada: 'Some as horas e os minutos separados. Se os minutos passarem de 60, transforme 60 min em 1 hora.',
+    temp: 'Quanto subiu = máxima − mínima.',
+    duracao: 'Conte do início até a hora cheia seguinte, depois as horas inteiras, depois os minutos que sobram.',
+    festa: 'Calcule o total em mL, passe para litros e veja quantas garrafas de 2 L. Se sobrar um pouco, precisa de mais uma garrafa.',
+    receita: 'Multiplique os gramas pelo número de receitas e divida por 1 000 para ter quilos.',
+    cubos: 'Conte quantos cubinhos tem uma camada (fileiras × cubinhos) e multiplique pelo número de camadas.',
+    corrida: 'Calcule quantos metros ela já correu (voltas × pista), passe a meta para metros (1 km = 1 000 m) e subtraia.',
+    aulas: 'Some o tempo de todas as aulas e o intervalo, e conte a partir da hora em que começa.',
+    lajotas: 'Veja quantas lajotas cabem em cada lado (1 m = 100 cm) e multiplique as duas quantidades.',
+  })[m.k] || 'Passe tudo para a mesma unidade antes de fazer a conta.';
+})();
 
 
 /* =========================================================================
@@ -15088,6 +15286,413 @@ if(typeof window !== 'undefined') (() => {
   document.addEventListener('keydown', e => { if(e.key === 'Escape' && $('ppHistBox')) $('ppHistBox').remove(); });
   estado.abrirMeuHistorico = abrirMeuHistorico;
 })();
+
+/* =========================================================================
+   REVISÃO COERENTE + FOCO SUGERIDO
+   · Revisão: deixa de cair em degrau bem abaixo do ano da turma que o aluno só
+     "ganhou" pelo diagnóstico (ex.: 2º ano para um aluno do 7º). Continuam na
+     revisão: o que ele dominou jogando, o que é até 2 anos abaixo do ano da turma
+     e os degraus-base (tabuada, divisão, frações, decimais, %…).
+     O modo apoio (perguntas de conforto) não muda.
+   · Foco sugerido: no cartão "Aula de hoje", embaixo do 🎯 Foco, aparece
+     "💡 Sugestão: <atividade> (N alunos com dificuldade)" com [usar].
+   Bloco novo: wrapper do escolherFonte e um aviso no cartão.
+========================================================================= */
+REGRA.revAnosAbaixo = 2;
+function revisaoServe(rec, id){
+  const d = rec.deg[id], g = POR_ID[id]; if(!d || !g) return false;
+  if(d.domPor === 'trilha' || d.domPor === 'treino') return true;
+  if(typeof BASE_REV !== 'undefined' && BASE_REV.has(id)) return true;
+  return g.ano >= anoDaTurma() - REGRA.revAnosAbaixo;
+}
+const escolherFonteSemFiltro = escolherFonte;
+escolherFonte = function(rec, sorte){
+  const f = escolherFonteSemFiltro.apply(this, arguments);
+  try{
+    if(!f || f.tipo !== 'rev' || !rec || estado.temaEmUso || revisaoServe(rec, f.id)) return f;   // trilha por tema: não mexe
+    // troca por outra revisão que faça sentido (a mais atrasada); se não houver, segue no degrau atual
+    const cands = CAT.filter(d => ativo(d) && rec.deg[d.id] && rec.deg[d.id].dom && revisaoServe(rec, d.id))
+      .map(d => ({ d, atraso: rec.resp - (rec.deg[d.id].revUlt || 0) - (rec.deg[d.id].revInt || REGRA.revIntervaloIni) }))
+      .sort((a, b) => b.atraso - a.atraso);
+    if(cands.length && cands[0].atraso >= 0) return { tipo: 'rev', id: cands[0].d.id, nivel: REGRA.nivelRevisao };
+    if(rec.atual && POR_ID[rec.atual]) return { tipo: 'atual', id: rec.atual, nivel: degDo(rec, rec.atual).n };
+    if(cands.length) return { tipo: 'rev', id: cands[0].d.id, nivel: REGRA.nivelRevisao };
+  }catch(e){}
+  return f;
+};
+
+/* ---------- foco sugerido ---------- */
+function focoSugerido(){
+  if(typeof estado.classificar !== 'function') return [];
+  const A = (estado.turma && estado.turma.alunos) || {}, nomes = estado.cfg.nomes || [];
+  const ano = Math.min(estado.cfg.ano || 7, LIMITE.anoMax || 9);
+  const conta = {};
+  nomes.forEach(n => {
+    const r = A[normNome(n)]; if(!r) return;
+    CAT.forEach(d => {
+      if(!ativo(d) || d.ano > ano || !r.deg[d.id]) return;
+      const s = estado.classificar(r, d);
+      const peso = s.st === 'dificuldade' ? 2 : (s.st === 'aprendendo' && s.agora < 60 && (s.tot || 0) >= 5) ? 1 : 0;
+      if(peso){ const c = conta[d.id] || (conta[d.id] = { id: d.id, pts: 0, dif: 0, alunos: 0 }); c.pts += peso; c.alunos++; if(peso === 2) c.dif++; }
+    });
+  });
+  return Object.values(conta).filter(c => c.alunos >= 2).sort((a, b) => b.pts - a.pts || POR_ID[b.id].ano - POR_ID[a.id].ano).slice(0, 3);
+}
+estado.focoSugerido = focoSugerido;
+if(typeof window !== 'undefined') (() => {
+  const st = document.createElement('style');
+  st.textContent = `
+  .mn-sug{grid-column:2;display:flex;align-items:center;gap:8px;font-size:13px;color:#fde68a;margin-top:-4px;min-width:0}
+  .mn-sug span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mn-sug button{width:auto!important;padding:4px 10px!important;font-size:12px!important;border-radius:8px;background:#422006;border:1px solid #fde68a;color:#fde68a;font-weight:900;cursor:pointer}`;
+  document.head.appendChild(st);
+  let cache = { t: 0, sug: [] };
+  function desenhar(){
+    const fb = $('trFocoBox'); if(!fb) return;
+    if(Date.now() - cache.t > 5000){ cache = { t: Date.now(), sug: focoSugerido() }; }
+    const atuais = (estado.cfg.foco && estado.cfg.foco.ids) || [];
+    const s = cache.sug.find(x => !atuais.includes(x.id));
+    let el = fb.querySelector('.mn-sug');
+    if(!s){ if(el) el.remove(); return; }
+    if(!el){ el = document.createElement('div'); el.className = 'mn-sug'; fb.appendChild(el); }
+    const d = POR_ID[s.id];
+    const txt = `💡 Sugestão: <b>${esc(d.nome)}</b> (${s.dif ? `${s.dif} com dificuldade` : `${s.alunos} com acerto baixo`})`;
+    const tip = 'Atividades em que a turma mais precisa de ajuda:\n' + cache.sug.map(x => `• ${POR_ID[x.id].nome} (${POR_ID[x.id].ano}º ano): ${x.dif} com dificuldade, ${x.alunos - x.dif} com acerto baixo`).join('\n');
+    const html = `<span title="${esc(tip)}">${txt}</span><button data-sugid="${esc(s.id)}">usar</button>`;
+    if(el.dataset.h !== html){ el.innerHTML = html; el.dataset.h = html; }
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-sugid]'); if(!b) return;
+    const id = b.dataset.sugid; if(!POR_ID[id]) return;
+    const freq = (estado.cfg.foco && estado.cfg.foco.freq) || 0.25;
+    estado.cfg.foco = { ids: [id], freq, stamp: Date.now() };
+    salvarCfg(); salvarTurmaLocal();
+    try{ atualizarBotaoFoco(); }catch(err){}
+    if(app.room && app.mode === 'teacher') try{ app.broadcastState(); }catch(err){}
+    app.toast(`🎯 Foco da aula: <b>${esc(POR_ID[id].nome)}</b>`, 'success');
+    cache.t = 0; desenhar();
+  });
+  const montarCartao0 = montarCartao;
+  montarCartao = function(){ const r = montarCartao0.apply(this, arguments); cache.t = 0; try{ desenhar(); }catch(e){} return r; };
+  setInterval(() => { try{ desenhar(); }catch(e){} }, 3000);
+  try{ desenhar(); }catch(e){}
+})();
+
+/* =========================================================================
+   RELATÓRIO C / NC / NA DA TURMA
+   · Abre pelo ✏️ Editar turma → "📊 Relatório C/NC/NA".
+   · Visões: por atividade (degrau), por habilidade da BNCC ou por descritor do Paebes.
+   · Anos: do 1º até o ano da turma, ou só o ano da turma.
+   · C  = consolidado, verificado no jogo (dominou jogando ou no treino)
+     C* = consolidado presumido (o diagnóstico pulou porque o aluno acertou coisa mais avançada)
+     NC = não consolidado (já respondeu, ainda não domina)
+     NA = não aplicado (ainda não respondeu)
+   · Mostra a tabela colorida na tela e baixa a planilha (.csv, abre no Excel e no Google Planilhas).
+   · Linha "Turma" com % C / % NC por coluna; ordem da trilha ou "mais críticas primeiro";
+     "só o que já foi aplicado"; aba 👥 Grupos de reforço (quem está em NC em cada
+     habilidade + erro mais comum de cada um); 🖨️ Imprimir.
+   · Também: 🔎 Refazer diagnóstico no ⋯ do aluno na gaveta (com a sala aberta).
+   Bloco novo: uma janela e dois botões.
+========================================================================= */
+function statusDegrau(r, d){
+  const x = r && r.deg && r.deg[d.id];
+  if(!x || (!x.tot && !x.dom)) return 'NA';
+  if(x.dom) return (x.domPor === 'diag' || x.domPor === 'ano') ? 'C*' : 'C';
+  return 'NC';
+}
+function juntarStatus(lista){
+  if(!lista.length) return '';
+  if(lista.every(s => s === 'NA')) return 'NA';
+  if(lista.every(s => s === 'C' || s === 'C*')) return lista.includes('C') ? 'C' : 'C*';
+  return 'NC';
+}
+function relatorioTurma(visao, soAno, opts = {}){
+  const ano = Math.min(estado.cfg.ano || 7, LIMITE.anoMax || 9);
+  let degs = CAT.filter(d => ativo(d) && (soAno ? d.ano === ano : d.ano <= ano));
+  const codsDe = d => String(d.bncc || '').split(/[·,]/).map(s => s.trim().replace(/\/ES$/, '')).filter(Boolean);
+  const filtro = opts.codigos && opts.codigos.length ? new Set(opts.codigos) : null;   // recorte: trimestre do currículo ou "meu plano"
+  if(filtro) degs = CAT.filter(d => ativo(d) && d.ano <= ano && codsDe(d).some(c => filtro.has(c)));
+  const A = estado.turma.alunos || {}, reais = estado.turma.reais || {};
+  const alunos = (estado.cfg.nomes || []).map(n => ({ nome: reais[n] || n, r: A[normNome(n)] || null })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  let cols = [];
+  if(visao === 'atividade') cols = degs.map(d => ({ cab: `${d.ano}º · ${d.nome}`, sub: d.bncc, degs: [d] }));
+  if(visao === 'bncc'){
+    const mapa = {};
+    degs.forEach(d => String(d.bncc || '').split(/[·,]/).map(s => s.trim()).filter(Boolean).forEach(c => { const k = c.replace(/\/ES$/, ''); (mapa[k] || (mapa[k] = [])).push(d); }));
+    cols = Object.keys(mapa).filter(k => !filtro || filtro.has(k)).sort().map(k => ({ cab: k, sub: [...new Set(mapa[k].map(d => d.nome))].join(' / '), degs: mapa[k] }));
+  }
+  if(visao === 'descritor' && typeof DESCRITORES !== 'undefined'){
+    Object.keys(DESCRITORES).forEach(code => { const ds = degs.filter(d => (DESC_DE[d.id] || []).includes(code)); if(ds.length) cols.push({ cab: code, sub: DESCRITORES[code], degs: ds }); });
+  }
+  // valor de cada aluno em cada coluna
+  const M = alunos.map(a => cols.map(c => juntarStatus(c.degs.map(d => statusDegrau(a.r, d)))));
+  // estatística da turma por coluna
+  cols.forEach((c, j) => {
+    const n = alunos.length || 1, k = v => M.filter(l => l[j] === v).length;
+    c.st = { c: k('C'), cp: k('C*'), nc: k('NC'), na: k('NA') };
+    c.pc = Math.round((c.st.c + c.st.cp) / n * 100); c.pnc = Math.round(c.st.nc / n * 100); c.pna = Math.round(c.st.na / n * 100);
+    c.idx = j;
+  });
+  let ordem = cols.slice();
+  if(opts.soAplicados) ordem = ordem.filter(c => c.st.na < alunos.length);
+  if(opts.ordem === 'critica') ordem.sort((x, y) => y.st.nc - x.st.nc || x.pc - y.pc);
+  const linhas = alunos.map((a, i) => {
+    const vals = ordem.map(c => M[i][c.idx]);
+    const cont = k => vals.filter(v => v === k).length;
+    return { nome: a.nome, r: a.r, vals, c: cont('C'), cp: cont('C*'), nc: cont('NC'), na: cont('NA') };
+  });
+  const semJogo = filtro ? [...filtro].filter(c => !CAT.some(d => ativo(d) && codsDe(d).includes(c))) : [];
+  return { ano, cols: ordem, linhas, total: cols.length, semJogo };
+}
+/* grupos de reforço: para cada coluna com NC, quem precisa (e o erro mais comum de cada um) */
+function gruposReforco(R){
+  return R.cols.map((c, j) => {
+    const quem = R.linhas.filter(l => l.vals[j] === 'NC').map(l => {
+      let erro = '', n = 0;
+      c.degs.forEach(d => { const x = l.r && l.r.deg[d.id]; if(x && x.err) Object.entries(x.err).forEach(([e, k]) => { if(k > n){ n = k; erro = e; } }); });
+      return { nome: l.nome, erro, n };
+    });
+    return { c, quem };
+  }).filter(g => g.quem.length).sort((a, b) => b.quem.length - a.quem.length);
+}
+estado.relatorioTurma = relatorioTurma;
+if(typeof window !== 'undefined') (() => {
+  const st = document.createElement('style');
+  st.textContent = `
+  #relBox{z-index:660}
+  .rel-op{display:flex;gap:8px;flex-wrap:wrap;margin:10px 4px}
+  .rel-op .ab{padding:8px 12px;border-radius:10px;background:var(--panel2);border:2px solid var(--line);color:var(--text);font-weight:900;cursor:pointer;width:auto}
+  .rel-op .ab.on{background:#3b82f6;border-color:#3b82f6}
+  .rel-leg{color:var(--muted);font-size:13px;margin:4px}
+  .rel-leg b{padding:1px 6px;border-radius:6px}
+  .rel-wrap{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:12px;margin-top:8px}
+  .rel-tab{border-collapse:collapse;font-size:12px}
+  .rel-tab th,.rel-tab td{border:1px solid #1e293b;padding:4px 6px;text-align:center;white-space:nowrap}
+  .rel-tab thead th{position:sticky;top:0;background:#0f172a;z-index:1;font-weight:800;color:#cbd5e1;max-width:120px;white-space:normal;vertical-align:bottom}
+  .rel-tab thead th small{display:block;font-weight:600;color:#64748b;font-size:10px;max-height:42px;overflow:hidden}
+  .rel-tab td.nm,.rel-tab th.nm{position:sticky;left:0;background:#0f172a;text-align:left;font-weight:800;z-index:2;color:#e2e8f0}
+  .rel-tab td.C{background:#166534;color:#fff;font-weight:900}
+  .rel-tab td.Cp{background:#3f6212;color:#ecfccb}
+  .rel-tab td.NC{background:#92400e;color:#fff;font-weight:900}
+  .rel-tab td.NA{background:#1e293b;color:#64748b}
+  .rel-tab td.tot{background:#0b1220;color:#e2e8f0;font-weight:800}
+  .rel-tab tfoot td{position:sticky;bottom:0;background:#0f172a;font-weight:900;font-size:11px;line-height:1.25;z-index:1}
+  .rel-tab tfoot td.nm{z-index:3}
+  .rel-tab tfoot td span{display:block;font-weight:700;color:#94a3b8}
+  .rel-op label{display:flex;align-items:center;gap:6px;color:var(--muted);font-weight:800;font-size:13px;cursor:pointer}
+  .rel-op label input{width:auto;margin:0}
+  .rg-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin-top:10px}
+  .rg-card{background:var(--panel2);border:2px solid #92400e;border-radius:12px;padding:10px 12px}
+  .rg-card h4{margin:0 0 2px;font-size:15px}
+  .rg-card .rg-sub{color:var(--muted);font-size:12px;margin-bottom:6px}
+  .rg-card li{font-size:14px;margin:2px 0}
+  .rg-card li small{color:#fca5a5}
+  @media print{
+    body.rel-imprimindo > *:not(#relBox){display:none !important}
+    body.rel-imprimindo, html{background:#fff !important}
+    body.rel-imprimindo #relBox{position:static;overflow:visible;background:#fff;color:#000;padding:0}
+    body.rel-imprimindo .rel-nao-imprime{display:none !important}
+    body.rel-imprimindo .rg-card{background:#fff;border-color:#999;break-inside:avoid;color:#000}
+    body.rel-imprimindo .rg-card .rg-sub{color:#333}
+    body.rel-imprimindo .rel-wrap{max-height:none;overflow:visible}
+  }`;
+  document.head.appendChild(st);
+  const cls = v => v === 'C*' ? 'Cp' : v;
+  function abrir(){
+    let box = $('relBox'); if(box) box.remove();
+    box = document.createElement('div'); box.id = 'relBox'; box.className = 'cat-fundo';
+    document.body.appendChild(box);
+    const est = { visao: 'atividade', soAno: false, ordem: 'trilha', soAplicados: true, aba: 'tabela', tri: 0, codigos: null };
+    const anoT = Math.min(estado.cfg.ano || 7, LIMITE.anoMax || 9);
+    const codigosDe = t => t === 'plano' ? (estado.turma.planoCodigos || []) : t ? (((typeof TRI_ES !== 'undefined' && TRI_ES[anoT]) || {})[t] || []) : null;
+    const desenha = () => {
+      const R = relatorioTurma(est.visao, est.soAno, est);
+      const tot = R.linhas.reduce((s, l) => s + l.c + l.cp + l.nc + l.na, 0) || 1;
+      const soma = k => R.linhas.reduce((s, l) => s + l[k], 0);
+      box.innerHTML = `<div class="cat-topo"><h2>📊 Relatório C / NC / NA · ${esc(estado.turma.nome || '')}</h2>
+          <div class="dir rel-nao-imprime"><button class="ab" data-imprimir="1">🖨️ Imprimir</button><button class="ab" data-baixar="1" style="background:#16a34a;border-color:#16a34a">⬇️ Baixar planilha</button><button class="ab" data-fechar="1">✕ Fechar</button></div></div>
+        <div class="rel-op">${[['atividade', 'Por atividade'], ['bncc', 'Por habilidade BNCC'], ['descritor', 'Por descritor Paebes']].map(([v, t]) => `<button class="ab ${est.visao === v ? 'on' : ''}" data-visao="${v}">${t}</button>`).join('')}
+          <span style="width:12px"></span>
+          <button class="ab ${!est.soAno ? 'on' : ''}" data-ano="0">1º ao ${R.ano}º ano</button><button class="ab ${est.soAno ? 'on' : ''}" data-ano="1">Só o ${R.ano}º ano</button></div>
+        <div class="rel-op rel-nao-imprime"><button class="ab ${est.aba === 'tabela' ? 'on' : ''}" data-aba="tabela">📋 Tabela</button><button class="ab ${est.aba === 'grupos' ? 'on' : ''}" data-aba="grupos">👥 Grupos de reforço</button>
+          <span style="width:12px"></span>
+          <button class="ab ${est.ordem === 'trilha' ? 'on' : ''}" data-ordem="trilha">Ordem da trilha</button><button class="ab ${est.ordem === 'critica' ? 'on' : ''}" data-ordem="critica">Mais críticas primeiro</button>
+          <label><input type="checkbox" data-soapl="1" ${est.soAplicados ? 'checked' : ''}> só o que já foi aplicado (${R.cols.length} de ${R.total})</label></div>
+        <div class="rel-op rel-nao-imprime"><span style="color:var(--muted);font-weight:800;font-size:13px">Habilidades:</span>
+          ${[[0, 'Todas'], [1, '1º trimestre'], [2, '2º trimestre'], [3, '3º trimestre'], ['plano', '📌 Meu plano']].map(([v, t]) => `<button class="ab ${String(est.tri) === String(v) ? 'on' : ''}" data-tri="${v}" ${v && v !== 'plano' ? `title="Currículo ES 2026 · ${anoT}º ano · ${v}º trimestre: ${esc(codigosDe(v).join(', '))}"` : ''}>${t}</button>`).join('')}
+          ${est.tri === 'plano' ? '<button class="ab" data-editplano="1">✏️ editar meu plano</button>' : ''}</div>
+        ${est.tri && R.semJogo && R.semJogo.length ? `<div class="rel-leg">ℹ️ Sem atividade no jogo (não entram no relatório): ${esc(R.semJogo.join(', '))}</div>` : ''}
+        <div class="rel-leg"><b style="background:#166534;color:#fff">C</b> consolidado (verificado no jogo) · <b style="background:#3f6212;color:#ecfccb">C*</b> consolidado presumido pelo diagnóstico · <b style="background:#92400e;color:#fff">NC</b> não consolidado · <b style="background:#1e293b;color:#94a3b8">NA</b> não aplicado
+          &nbsp;·&nbsp; Turma: <b>${Math.round((soma('c') + soma('cp')) / tot * 100)}%</b> C/C* · <b>${Math.round(soma('nc') / tot * 100)}%</b> NC · <b>${Math.round(soma('na') / tot * 100)}%</b> NA</div>
+        ${est.aba === 'grupos' ? gruposHTML(R) : R.cols.length && R.linhas.length ? `<div class="rel-wrap"><table class="rel-tab"><thead><tr><th class="nm">Aluno</th><th>C</th><th>C*</th><th>NC</th><th>NA</th>${R.cols.map(c => `<th title="${esc(c.sub || '')}">${esc(c.cab)}<small>${esc(c.sub || '')}</small></th>`).join('')}</tr></thead>
+          <tbody>${R.linhas.map(l => `<tr><td class="nm">${esc(l.nome)}</td><td class="tot">${l.c}</td><td class="tot">${l.cp}</td><td class="tot">${l.nc}</td><td class="tot">${l.na}</td>${l.vals.map(v => `<td class="${cls(v)}">${v}</td>`).join('')}</tr>`).join('')}</tbody>
+          <tfoot><tr><td class="nm">Turma</td><td class="tot" colspan="4"></td>${R.cols.map(c => `<td style="background:rgba(146,64,14,${(c.pnc / 100 * 0.9 + 0.05).toFixed(2)})" title="${c.st.c} C · ${c.st.cp} C* · ${c.st.nc} NC · ${c.st.na} NA">${c.pc}% C<span>${c.pnc}% NC</span></td>`).join('')}</tr></tfoot></table></div>`
+          : '<div class="rel-leg" style="padding:20px">Sem alunos ou sem atividades para mostrar.</div>'}`;
+    };
+    box.onclick = e => {
+      const t = e.target;
+      if(t.closest('[data-fechar]')){ box.remove(); return; }
+      const v = t.closest('[data-visao]'); if(v){ est.visao = v.dataset.visao; desenha(); return; }
+      const a = t.closest('[data-ano]'); if(a){ est.soAno = a.dataset.ano === '1'; desenha(); return; }
+      const ab = t.closest('[data-aba]'); if(ab){ est.aba = ab.dataset.aba; desenha(); return; }
+      const o = t.closest('[data-ordem]'); if(o){ est.ordem = o.dataset.ordem; desenha(); return; }
+      const tr = t.closest('[data-tri]');
+      if(tr){
+        const v = tr.dataset.tri === 'plano' ? 'plano' : +tr.dataset.tri;
+        if(v === 'plano' && !(estado.turma.planoCodigos || []).length){ if(!editarPlano()) return; }
+        est.tri = v; est.codigos = codigosDe(v); desenha(); return;
+      }
+      if(t.closest('[data-editplano]')){ if(editarPlano()){ est.codigos = codigosDe('plano'); desenha(); } return; }
+      if(t.closest('[data-soapl]')){ est.soAplicados = t.closest('[data-soapl]').checked; desenha(); return; }
+      if(t.closest('[data-imprimir]')){ document.body.classList.add('rel-imprimindo'); setTimeout(() => { window.print(); document.body.classList.remove('rel-imprimindo'); }, 50); return; }
+      if(t.closest('[data-baixar]')) baixar(est);
+    };
+    desenha();
+  }
+  function editarPlano(){
+    const atual = (estado.turma.planoCodigos || []).join(' ');
+    const txt = prompt('Cole as habilidades do seu plano de ensino (os códigos, ex.: EF07MA02 EF07MA17 …).\nPode colar o texto do plano inteiro: eu pego só os códigos.', atual);
+    if(txt === null) return false;
+    const cods = [...new Set((txt.match(/EF0\dMA\d\d/gi) || []).map(c => c.toUpperCase()))];
+    estado.turma.planoCodigos = cods; salvarTurmaLocal();
+    app.toast(`📌 Meu plano: ${cods.length} habilidade(s)`, 'success');
+    return true;
+  }
+  function gruposHTML(R){
+    const G = gruposReforco(R);
+    if(!G.length) return '<div class="rel-leg" style="padding:20px">Ninguém com NC nas colunas mostradas. 🎉</div>';
+    return `<div class="rel-leg">Para cada ${R.cols[0] && R.cols[0].degs.length === 1 ? 'atividade' : 'habilidade'} com alunos em NC: quem precisa de reforço e o erro mais comum de cada um. Das mais urgentes (mais alunos) para as menos.</div>
+      <div class="rg-grade">${G.map(g => `<div class="rg-card"><h4>${esc(g.c.cab)} · ${g.quem.length} aluno${g.quem.length === 1 ? '' : 's'}</h4><div class="rg-sub">${esc(g.c.sub || '')} · turma: ${g.c.pc}% C · ${g.c.pnc}% NC</div>
+        <ul style="margin:0;padding-left:18px">${g.quem.map(q => `<li>${esc(q.nome)}${q.erro ? ` <small>❌ ${esc(q.erro)}${q.n > 1 ? ` (${q.n}×)` : ''}</small>` : ''}</li>`).join('')}</ul></div>`).join('')}</div>`;
+  }
+  function baixar(est){
+    const R = relatorioTurma(est.visao, est.soAno, est);
+    const q = s => { s = String(s == null ? '' : s); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const linhas = [];
+    linhas.push([`Turma ${estado.turma.nome || ''} · ${R.ano}º ano · ${new Date().toLocaleDateString('pt-BR')}${est.tri ? ' · ' + (est.tri === 'plano' ? 'meu plano' : est.tri + 'º trimestre (currículo ES)') : ''}`].map(q).join(';'));
+    linhas.push(['Aluno', 'C', 'C*', 'NC', 'NA', ...R.cols.map(c => c.cab)].map(q).join(';'));
+    linhas.push(['', '', '', '', '', ...R.cols.map(c => c.sub || '')].map(q).join(';'));
+    R.linhas.forEach(l => linhas.push([l.nome, l.c, l.cp, l.nc, l.na, ...l.vals].map(q).join(';')));
+    linhas.push(['Turma: % C+C*', '', '', '', '', ...R.cols.map(c => c.pc + '%')].map(q).join(';'));
+    linhas.push(['Turma: % NC', '', '', '', '', ...R.cols.map(c => c.pnc + '%')].map(q).join(';'));
+    linhas.push(['Turma: % NA', '', '', '', '', ...R.cols.map(c => c.pna + '%')].map(q).join(';'));
+    linhas.push('');
+    linhas.push(q('C = consolidado (verificado no jogo) · C* = consolidado presumido pelo diagnóstico · NC = não consolidado · NA = não aplicado'));
+    const blob = new Blob(['﻿' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    const nm = (estado.turma.nome || 'turma').replace(/[^\w\-]+/g, '_');
+    a.href = url; a.download = `relatorio-${nm}-${{ atividade: 'atividades', bncc: 'bncc', descritor: 'paebes' }[est.visao]}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+    app.toast('⬇️ Planilha baixada', 'success');
+  }
+  estado.abrirRelatorio = abrir;
+  /* gaveta (sala aberta): ⋯ do aluno → 🔎 Refazer diagnóstico */
+  const abrirMenuAluno0 = abrirMenuAluno;
+  abrirMenuAluno = function(pid){
+    const r = abrirMenuAluno0.apply(this, arguments);
+    const jan = document.querySelector('#acMenu .ac-janela'), p = app.host.players.find(x => x.id === pid);
+    if(jan && p && estado.refazerDiagnostico && (estado.turma.alunos || {})[normNome(p.name)]){
+      const b = document.createElement('button'); b.className = 'ghost'; b.textContent = '🔎 Refazer diagnóstico';
+      b.onclick = e => { e.stopPropagation(); const m = $('acMenu'); if(m) m.remove();
+        if(confirm(`Refazer o diagnóstico de ${p.name}?\nEle responde algumas perguntas agora para achar o degrau certo. O que conquistou jogando continua.`)){ estado.refazerDiagnostico(normNome(p.name)); app.toast(`🔎 ${esc(p.name)} vai refazer o diagnóstico`, 'info'); } };
+      const ref = jan.querySelector('[data-a="ficha"]'); if(ref) ref.after(b); else jan.appendChild(b);
+    }
+    return r;
+  };
+  /* botão no ✏️ Editar turma */
+  setInterval(() => {
+    const topo = document.querySelector('#teBox .te-topo'); if(!topo || $('teRelBt')) return;
+    const b = document.createElement('button'); b.id = 'teRelBt'; b.className = 'ghost'; b.textContent = '📊 Relatório C/NC/NA';
+    b.style.cssText = 'width:auto;padding:8px 12px';
+    b.onclick = e => { e.stopPropagation(); abrir(); };
+    const pronto = topo.querySelector('[data-tfecha]'); if(pronto) pronto.before(b); else topo.appendChild(b);
+  }, 400);
+})();
+
+/* =========================================================================
+   VERIFICAÇÃO DOS PRESUMIDOS (C* → C ou NC)
+   · O diagnóstico pula degraus quando o aluno acerta coisa mais avançada: eles
+     ficam "consolidados presumidos" (C*). De vez em quando (1 em cada 10
+     perguntas) o jogo traz uma pergunta de VERIFICAÇÃO de um C* do ano da turma
+     ou do ano anterior, no nível médio:
+       acertou ............................ vira C (confirmado no jogo)
+       errou 1ª vez ....................... volta a perguntar mais tarde
+       errou 2 vezes ...................... vira NC e o degrau volta para a trilha
+   · Não entra no diagnóstico, no modo apoio, na pausa, no plano individual nem na
+     trilha por tema. Para o aluno é uma pergunta comum.
+   Bloco novo: wrappers de escolherFonte, registrar e classificar.
+========================================================================= */
+REGRA.pVerif = 0.20;          // chance de trocar a pergunta por uma verificação (na prática ~8% das perguntas, e some quando não há C*)
+REGRA.verifAnos = 1;          // ano da turma e o anterior
+function presumidosParaVerificar(rec){
+  const ano = anoDaTurma();
+  return CAT.filter(d => {
+    const x = rec.deg[d.id];
+    return ativo(d) && x && x.dom && (x.domPor === 'diag' || x.domPor === 'ano') && d.ano >= ano - REGRA.verifAnos && d.ano <= ano;
+  });
+}
+const escolherFonteSemVerif = escolherFonte;
+escolherFonte = function(rec, sorte){
+  const f = escolherFonteSemVerif.apply(this, arguments);
+  try{
+    if(!rec || !f || f.tipo === 'diag' || (rec.diag && typeof rec.diag === 'object') || rec.apoio || rec.pausa || rec.plano || estado.temaEmUso) return f;
+    if(f.tipo === 'foco' || f.tipo === 'desafio') return f;
+    if(Math.random() >= REGRA.pVerif) return f;
+    const ult = (rec.ultIds || []).slice(-1)[0];
+    if(rec.verifUlt && rec.resp - rec.verifUlt < 3) return f;                    // nunca duas seguidas
+    const cands = presumidosParaVerificar(rec).filter(d => d.id !== ult);
+    if(!cands.length) return f;
+    // quem errou 1 vez tem prioridade; depois, do mais avançado para o mais básico
+    cands.sort((a, b) => ((rec.deg[b.id].verifErr || 0) - (rec.deg[a.id].verifErr || 0)) || (b.i - a.i));
+    const d = Math.random() < 0.6 ? cands[0] : cands[Math.floor(Math.random() * cands.length)];
+    return { tipo: 'verif', id: d.id, nivel: 2 };
+  }catch(e){ return f; }
+};
+const registrarSemVerif = registrar;
+registrar = function(rec, fonte, q, idx, ok, frac){
+  if(!fonte || fonte.tipo !== 'verif') return registrarSemVerif.apply(this, arguments);
+  const ev = registrarSemVerif.call(this, rec, Object.assign({}, fonte, { tipo: 'previa' }), q, idx, ok, frac) || {};
+  try{
+    rec.verifUlt = rec.resp;
+    const d = rec.deg[fonte.id]; if(!d || !d.dom) return ev;
+    if(q && q._ajuda) return ev;                                                  // com ajuda não confirma nem derruba
+    if(ok){
+      d.domPor = 'verif'; d.verifEm = new Date().toISOString(); d.verifErr = 0;
+      ev.verificou = fonte.id;
+    } else if((d.verifErr || 0) >= 1){
+      d.dom = 0; d.domPor = ''; d.n = 2; d.cnt = 0; d.h = []; d.seqErr = 0; d.verifErr = 0; d.verifFalhou = 1;
+      ev.verifFalhou = fonte.id;
+      if(!rec.atual || (POR_ID[rec.atual] && POR_ID[fonte.id].i < POR_ID[rec.atual].i)) rec.atual = fonte.id;   // volta a treinar esse degrau
+    } else {
+      d.verifErr = 1;
+    }
+  }catch(e){}
+  return ev;
+};
+/* ficha e relatório: "verif" = confirmado no jogo */
+const classificarSemVerif = classificar;
+classificar = function(r, d){
+  const x = r && r.deg && r.deg[d.id];
+  if(x && x.dom && x.domPor === 'verif'){
+    const s = classificarSemVerif.apply(this, arguments);
+    return Object.assign(s, { st: 'sabia', txt: 'confirmado no jogo (verificação)' + (x.verifEm ? ' · ' + new Date(x.verifEm).toLocaleDateString('pt-BR') : '') });
+  }
+  if(x && !x.dom && x.verifFalhou && !(x.h || []).length){
+    const s = classificarSemVerif.apply(this, arguments);
+    return Object.assign(s, { st: 'dificuldade', txt: 'o diagnóstico tinha dado como sabido, mas errou a verificação 2 vezes' });
+  }
+  return classificarSemVerif.apply(this, arguments);
+};
+estado.classificar = classificar;
+estado.presumidosParaVerificar = presumidosParaVerificar;
+
+/* =========================================================================
+   CURRÍCULO ES 2026 — habilidades por trimestre (Orientações Curriculares SEDU/ES,
+   anos iniciais EFAI_MAT_26 e anos finais EFAF_MAT_26, lidas da barra lateral
+   "1º/2º/3º TRIMESTRE → CAPÍTULOS → habilidades" de cada ano).
+   Usado no relatório para recortar "só as habilidades do trimestre".
+========================================================================= */
+const TRI_ES = {"1":{"1":["EF01MA01","EF01MA02","EF01MA03","EF01MA04","EF01MA09","EF01MA11","EF01MA12","EF01MA15","EF01MA16"],"2":["EF01MA05","EF01MA06","EF01MA07","EF01MA08","EF01MA10","EF01MA13","EF01MA17","EF01MA18","EF01MA20","EF01MA21"],"3":["EF01MA14","EF01MA19","EF01MA22","EF01MA23","EF01MA24","EF01MA25"]},"2":{"1":["EF02MA01","EF02MA02","EF02MA03","EF02MA04","EF02MA09","EF02MA10","EF02MA12","EF02MA13","EF02MA16","EF02MA17","EF02MA21"],"2":["EF02MA05","EF02MA06","EF02MA07","EF02MA11","EF02MA14","EF02MA18","EF02MA22","EF02MA25"],"3":["EF02MA08","EF02MA15","EF02MA19","EF02MA20","EF02MA23","EF02MA24"]},"3":{"1":["EF03MA01","EF03MA02","EF03MA03","EF03MA04","EF03MA10","EF03MA12","EF03MA13","EF03MA17","EF03MA18","EF03MA19","EF03MA25"],"2":["EF03MA05","EF03MA06","EF03MA07","EF03MA11","EF03MA14","EF03MA20","EF03MA21","EF03MA26","EF03MA27"],"3":["EF03MA08","EF03MA09","EF03MA15","EF03MA16","EF03MA22","EF03MA23","EF03MA24","EF03MA28"]},"4":{"1":["EF04MA01","EF04MA02","EF04MA03","EF04MA04","EF04MA11","EF04MA12","EF04MA16","EF04MA20","EF04MA21","EF04MA26","EF04MA29"],"2":["EF04MA06","EF04MA07","EF04MA13","EF04MA14","EF04MA17","EF04MA22","EF04MA23","EF04MA24","EF04MA27"],"3":["EF04MA05","EF04MA08","EF04MA09","EF04MA10","EF04MA15","EF04MA18","EF04MA19","EF04MA25","EF04MA28"]},"5":{"1":["EF05MA01","EF05MA02","EF05MA03","EF05MA04","EF05MA10","EF05MA11","EF05MA14","EF05MA15","EF05MA19"],"2":["EF05MA05","EF05MA06","EF05MA12","EF05MA13","EF05MA16","EF05MA17","EF05MA22","EF05MA23","EF05MA24"],"3":["EF05MA07","EF05MA08","EF05MA09","EF05MA18","EF05MA20","EF05MA21"]},"6":{"1":["EF06MA01","EF06MA02","EF06MA03","EF06MA04","EF06MA05","EF06MA06","EF06MA12","EF06MA14","EF06MA35"],"2":["EF06MA01","EF06MA07","EF06MA08","EF06MA09","EF06MA10","EF06MA11","EF06MA13","EF06MA17","EF06MA18","EF06MA19","EF06MA20","EF06MA25","EF06MA26","EF06MA27"],"3":["EF06MA15","EF06MA16","EF06MA21","EF06MA22","EF06MA23","EF06MA24","EF06MA28","EF06MA29","EF06MA30","EF06MA31","EF06MA32"]},"7":{"1":["EF06MA08","EF06MA09","EF07MA03","EF07MA04","EF07MA05","EF07MA06","EF07MA07","EF07MA08","EF07MA09","EF07MA10","EF07MA11","EF07MA12"],"2":["EF06MA31","EF07MA02","EF07MA13","EF07MA14","EF07MA15","EF07MA16","EF07MA17","EF07MA18","EF07MA34","EF07MA35","EF07MA36","EF07MA37"],"3":["EF06MA18","EF06MA22","EF06MA24","EF06MA27","EF06MA28","EF07MA22","EF07MA23","EF07MA24","EF07MA25","EF07MA26","EF07MA27","EF07MA28","EF07MA29","EF07MA30","EF07MA31","EF07MA32","EF07MA33"]},"8":{"1":["EF07MA10","EF07MA11","EF07MA12","EF08MA01","EF08MA02","EF08MA06","EF08MA10","EF08MA11"],"2":["EF08MA03","EF08MA04","EF08MA07","EF08MA08","EF08MA12","EF08MA13","EF08MA22","EF08MA23","EF08MA24","EF08MA25"],"3":["EF08MA09","EF08MA14","EF08MA15","EF08MA17","EF08MA19","EF08MA20","EF08MA21"]},"9":{"1":["EF07MA10","EF07MA11","EF09MA03","EF09MA04","EF09MA05","EF09MA07","EF09MA08","EF09MA10","EF09MA11"],"2":["EF08MA06","EF09MA09","EF09MA12","EF09MA13","EF09MA20","EF09MA22","EF09MA23","EF09MA26"],"3":["EF07MA22","EF09MA01","EF09MA02","EF09MA03","EF09MA06","EF09MA11","EF09MA17","EF09MA19"]}};
 
 return { CAT, POR_ID, LIMITE, dicaDe, fracEmPe, lacunas, G, C, REGRA, gerarQuestao, novoRegistro, iniciar, escolherFonte, registrar, resumo, estado, IMG, testarTrilha, alternativas };
 })();
