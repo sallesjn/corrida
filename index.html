@@ -6568,7 +6568,8 @@ C.notaFiscal5 = m => { let t = 0; m.itens.forEach(([, q, p]) => { for(let i = 0;
 
 /* Tabela de proporção (EF05MA12) */
 G.propTabela5 = n => {
-  const prod = pick([['cadernos', 'Preço (R$)'], ['pacotes de figurinha', 'Preço (R$)'], ['canetas', 'Preço (R$)']]);
+  const prod = pick([['cadernos', 'Preço (R$)', 'Todos os'], ['pacotes de figurinha', 'Preço (R$)', 'Todos os'], ['canetas', 'Preço (R$)', 'Todas as']]);
+  const iguais = `${prod[2]} ${prod[0]} têm o mesmo preço. A tabela mostra quanto custam juntos.`.replace('custam juntos', prod[2] === 'Todas as' ? 'custam juntas' : 'custam juntos');
   const unit = n === 3 ? pick([150, 250, 350, 450]) : rnd(2, 9) * 100;       // em centavos
   const qs = n === 1 ? [1, 2, 3, 4] : [1, 2, 5, 10], iF = n === 1 ? 3 : rnd(1, 3);
   const reverso = n === 3 && Math.random() < .5 && iF > 1;
@@ -6584,7 +6585,7 @@ G.propTabela5 = n => {
     const erradas = [{ v: v + unit, erro: 'contou uma unidade a mais' }, { v: qs[iF - 1] * unit + unit, erro: 'somou só o preço de 1 à linha anterior' }, { v: v - unit, erro: 'contou uma unidade a menos' }, { v: v * 10, erro: 'errou a vírgula' }];
     a = alternativas(v, erradas.filter(e => e.v !== v && e.v > 0), fmtR, { min: 5, passo: 50 });
   }
-  return { ...a, text: reverso ? `A tabela mostra o preço de ${prod[0]}. Qual quantidade custa R$ ${f(qs[iF] * unit)}?` : `A tabela mostra o preço de ${prod[0]}. Qual é o valor que falta?`,
+  return { ...a, text: reverso ? `${iguais} Quantos ${prod[0]} custam R$ ${f(qs[iF] * unit)}?`.replace('Quantos canetas', 'Quantas canetas') : `${iguais} Qual é o valor que falta?`,
     image: svgURI(tabelaSVG(['Quantidade', prod[1]], linhas)), meta: { qs, unit, iF, reverso }, chave: `pt${unit}${iF}${reverso}` };
 };
 C.propTabela5 = m => m.reverso ? String(m.qs[m.iF]) : fmtR(m.qs[m.iF] * m.unit);
@@ -15693,6 +15694,136 @@ estado.presumidosParaVerificar = presumidosParaVerificar;
    Usado no relatório para recortar "só as habilidades do trimestre".
 ========================================================================= */
 const TRI_ES = {"1":{"1":["EF01MA01","EF01MA02","EF01MA03","EF01MA04","EF01MA09","EF01MA11","EF01MA12","EF01MA15","EF01MA16"],"2":["EF01MA05","EF01MA06","EF01MA07","EF01MA08","EF01MA10","EF01MA13","EF01MA17","EF01MA18","EF01MA20","EF01MA21"],"3":["EF01MA14","EF01MA19","EF01MA22","EF01MA23","EF01MA24","EF01MA25"]},"2":{"1":["EF02MA01","EF02MA02","EF02MA03","EF02MA04","EF02MA09","EF02MA10","EF02MA12","EF02MA13","EF02MA16","EF02MA17","EF02MA21"],"2":["EF02MA05","EF02MA06","EF02MA07","EF02MA11","EF02MA14","EF02MA18","EF02MA22","EF02MA25"],"3":["EF02MA08","EF02MA15","EF02MA19","EF02MA20","EF02MA23","EF02MA24"]},"3":{"1":["EF03MA01","EF03MA02","EF03MA03","EF03MA04","EF03MA10","EF03MA12","EF03MA13","EF03MA17","EF03MA18","EF03MA19","EF03MA25"],"2":["EF03MA05","EF03MA06","EF03MA07","EF03MA11","EF03MA14","EF03MA20","EF03MA21","EF03MA26","EF03MA27"],"3":["EF03MA08","EF03MA09","EF03MA15","EF03MA16","EF03MA22","EF03MA23","EF03MA24","EF03MA28"]},"4":{"1":["EF04MA01","EF04MA02","EF04MA03","EF04MA04","EF04MA11","EF04MA12","EF04MA16","EF04MA20","EF04MA21","EF04MA26","EF04MA29"],"2":["EF04MA06","EF04MA07","EF04MA13","EF04MA14","EF04MA17","EF04MA22","EF04MA23","EF04MA24","EF04MA27"],"3":["EF04MA05","EF04MA08","EF04MA09","EF04MA10","EF04MA15","EF04MA18","EF04MA19","EF04MA25","EF04MA28"]},"5":{"1":["EF05MA01","EF05MA02","EF05MA03","EF05MA04","EF05MA10","EF05MA11","EF05MA14","EF05MA15","EF05MA19"],"2":["EF05MA05","EF05MA06","EF05MA12","EF05MA13","EF05MA16","EF05MA17","EF05MA22","EF05MA23","EF05MA24"],"3":["EF05MA07","EF05MA08","EF05MA09","EF05MA18","EF05MA20","EF05MA21"]},"6":{"1":["EF06MA01","EF06MA02","EF06MA03","EF06MA04","EF06MA05","EF06MA06","EF06MA12","EF06MA14","EF06MA35"],"2":["EF06MA01","EF06MA07","EF06MA08","EF06MA09","EF06MA10","EF06MA11","EF06MA13","EF06MA17","EF06MA18","EF06MA19","EF06MA20","EF06MA25","EF06MA26","EF06MA27"],"3":["EF06MA15","EF06MA16","EF06MA21","EF06MA22","EF06MA23","EF06MA24","EF06MA28","EF06MA29","EF06MA30","EF06MA31","EF06MA32"]},"7":{"1":["EF06MA08","EF06MA09","EF07MA03","EF07MA04","EF07MA05","EF07MA06","EF07MA07","EF07MA08","EF07MA09","EF07MA10","EF07MA11","EF07MA12"],"2":["EF06MA31","EF07MA02","EF07MA13","EF07MA14","EF07MA15","EF07MA16","EF07MA17","EF07MA18","EF07MA34","EF07MA35","EF07MA36","EF07MA37"],"3":["EF06MA18","EF06MA22","EF06MA24","EF06MA27","EF06MA28","EF07MA22","EF07MA23","EF07MA24","EF07MA25","EF07MA26","EF07MA27","EF07MA28","EF07MA29","EF07MA30","EF07MA31","EF07MA32","EF07MA33"]},"8":{"1":["EF07MA10","EF07MA11","EF07MA12","EF08MA01","EF08MA02","EF08MA06","EF08MA10","EF08MA11"],"2":["EF08MA03","EF08MA04","EF08MA07","EF08MA08","EF08MA12","EF08MA13","EF08MA22","EF08MA23","EF08MA24","EF08MA25"],"3":["EF08MA09","EF08MA14","EF08MA15","EF08MA17","EF08MA19","EF08MA20","EF08MA21"]},"9":{"1":["EF07MA10","EF07MA11","EF09MA03","EF09MA04","EF09MA05","EF09MA07","EF09MA08","EF09MA10","EF09MA11"],"2":["EF08MA06","EF09MA09","EF09MA12","EF09MA13","EF09MA20","EF09MA22","EF09MA23","EF09MA26"],"3":["EF07MA22","EF09MA01","EF09MA02","EF09MA03","EF09MA06","EF09MA11","EF09MA17","EF09MA19"]}};
+
+/* =========================================================================
+   GRÁFICO DO PLANO CARTESIANO MAIOR NA TELA DO ALUNO (Chromebook deitado)
+   · Nas perguntas de par ordenado / plano cartesiano o gráfico é quadrado e
+     ficava limitado pela altura (≈160 px num Chromebook) e as alternativas
+     ficavam abaixo da dobra.
+   · Agora, só nessas perguntas e só em tela larga deitada (≥ 1000 px), o gráfico
+     vai para uma coluna à esquerda, ocupando quase toda a altura da tela (≈465 px num Chromebook), e a
+     pergunta + alternativas ficam à direita. Celular em pé: nada muda.
+   Bloco novo: wrapper de app.renderPlayerQuestion (por fora dos outros) e CSS.
+========================================================================= */
+if(typeof window !== 'undefined') (() => {
+  const LARGA = window.matchMedia ? window.matchMedia('(min-width:1000px) and (orientation:landscape)') : { matches: false };
+  const IDS_PLANO = new Set(['plano', 'p6_coord', 'vertices6', 'transf7', 'retaEq8', 'funcao9']);
+  const st = document.createElement('style');
+  st.textContent = `
+  @media (min-width:1000px) and (orientation:landscape){
+    #playerPlay.tr-lado{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:18px;row-gap:12px;max-width:min(1240px,96vw);align-content:start}
+    #playerPlay.tr-lado>*{grid-column:1/-1}
+    #playerPlay.tr-lado>#ppQImage{grid-column:1;grid-row:span 3;align-self:start;height:calc(100vh - 160px);max-height:640px;min-height:220px;width:auto;max-width:48vw;
+      object-fit:contain;background:#fff;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+    #playerPlay.tr-lado>#ppQuestionCard,#playerPlay.tr-lado>#ppOptions,#playerPlay.tr-lado>.pp-stats{grid-column:2}
+  }`;
+  document.head.appendChild(st);
+
+  function ehPlano(q){
+    if(!q || !q.image) return false;
+    if(q.trilha && IDS_PLANO.has(q.trilha.id)) return true;
+    return q.type === 'coordenadas';                              // jogo normal (fora da trilha)
+  }
+  function arrumar(q){
+    const pp = $('playerPlay'), img = $('ppQImage'), card = $('ppQuestionCard'), txt = $('ppQuestion');
+    if(!pp || !img || !card) return;
+    const lado = LARGA.matches && ehPlano(q) && !img.classList.contains('hidden');
+    if(lado){
+      if(img.parentElement !== pp) pp.insertBefore(img, card);   // figura vira a coluna da esquerda
+    } else if(img.parentElement !== card){
+      card.insertBefore(img, txt && txt.parentElement === card ? txt : card.firstChild);   // volta ao lugar de sempre
+    }
+    pp.classList.toggle('tr-lado', lado);
+  }
+  const render0 = app.renderPlayerQuestion;
+  app.renderPlayerQuestion = function(q){
+    const r = render0.apply(this, arguments);
+    try{ arrumar(q); }catch(e){}
+    return r;
+  };
+  const reav = () => { try{ arrumar(app.player && app.player.currentQuestion); }catch(e){} };
+  if(LARGA.addEventListener) LARGA.addEventListener('change', reav); else if(LARGA.addListener) LARGA.addListener(reav);   // girou a tela
+  estado.arrumarFigura = arrumar;
+})();
+
+/* =========================================================================
+   PEDRAS DE PROTEÇÃO DA SEQUÊNCIA (🔥 acertos seguidos)
+   · Antes: 1 erro (ou tempo esgotado) zerava a sequência.
+   · Agora o aluno começa a partida com 3 pedras 💎. Cada erro gasta 1 pedra e a
+     sequência NÃO zera. Sem pedra, o erro zera a sequência como antes.
+   · A cada 10 acertos seguidos DE VERDADE (sem erro no meio) uma pedra volta,
+     até no máximo 3.
+   · Pontos, nível, trilha e relatório não mudam: só o contador da sequência.
+   Bloco novo: wrappers de app.localAnswer e app.localTimeout.
+========================================================================= */
+REGRA.pedrasMax = 3;             // pedras no começo da partida e no máximo
+REGRA.pedraRegenera = 10;        // acertos seguidos (sem erro) para recuperar 1 pedra
+if(typeof window !== 'undefined') (() => {
+  const st = document.createElement('style');
+  st.textContent = `
+  .pp-stats .streak .seq-pedras{margin-left:6px;font-size:.8em;letter-spacing:1px;white-space:nowrap}
+  .pp-stats .streak .seq-pedras i{font-style:normal;filter:grayscale(1);opacity:.35}
+  .pp-stats .streak.seq-risco b{color:#fca5a5}
+  .seq-pedra-anim{animation:seqPedra .6s ease}
+  @keyframes seqPedra{0%{transform:scale(1)}40%{transform:scale(1.5)}100%{transform:scale(1)}}`;
+  document.head.appendChild(st);
+
+  function pedrasDe(s){
+    if(s.pedras == null){ s.pedras = REGRA.pedrasMax; s.acSeg = 0; }   // partida nova
+    return s.pedras;
+  }
+  function marca(s, anima){
+    const it = document.querySelector('#playerPlay .pp-stats .streak'); if(!it) return;
+    let e = it.querySelector('.seq-pedras');
+    if(!e){ e = document.createElement('span'); e.className = 'seq-pedras'; it.appendChild(e); }
+    const p = pedrasDe(s), falta = REGRA.pedraRegenera - (s.acSeg || 0) % REGRA.pedraRegenera;
+    e.innerHTML = '💎'.repeat(p) + '<i>💎</i>'.repeat(Math.max(0, REGRA.pedrasMax - p));
+    e.title = `Pedras de proteção: cada erro gasta 1 e a sequência não zera.` + (p < REGRA.pedrasMax ? ` Faltam ${falta} acertos seguidos para recuperar 1.` : '');
+    it.classList.toggle('seq-risco', p === 0 && s.curStreak > 0);
+    if(anima){ e.classList.remove('seq-pedra-anim'); void e.offsetWidth; e.classList.add('seq-pedra-anim'); }
+  }
+  function aviso(txt){
+    document.querySelectorAll('.tr-banner').forEach(x => x.remove());
+    const b = document.createElement('div'); b.className = 'tr-banner'; b.innerHTML = txt;
+    document.body.appendChild(b); setTimeout(() => b.remove(), 2200);
+  }
+  function embrulha(nome){
+    const f0 = app[nome];
+    app[nome] = function(){
+      const s = this.player && this.player.stats;
+      if(!s) return f0.apply(this, arguments);
+      pedrasDe(s);
+      const seqAntes = s.curStreak || 0, errAntes = (s.wrong || 0) + (s.timeouts || 0), okAntes = s.correct || 0;
+      const r = f0.apply(this, arguments);
+      try{
+        const errou = (s.wrong || 0) + (s.timeouts || 0) > errAntes, acertou = (s.correct || 0) > okAntes;
+        let anima = false;
+        if(acertou){
+          s.acSeg = (s.acSeg || 0) + 1;
+          if(s.acSeg % REGRA.pedraRegenera === 0 && s.pedras < REGRA.pedrasMax){
+            s.pedras++; anima = true;
+            aviso(`💎 Pedra recuperada! (${REGRA.pedraRegenera} acertos seguidos)`);
+          }
+        } else if(errou){
+          s.acSeg = 0;
+          if(seqAntes > 0 && s.pedras > 0){
+            s.pedras--; anima = true;
+            s.curStreak = seqAntes;                                        // a pedra segura a sequência
+            $('ppStreak').textContent = s.curStreak;
+            aviso(s.pedras ? `💎 A pedra protegeu sua sequência! (🔥 ${seqAntes}) · restam ${s.pedras}` : `💎 Última pedra usada! (🔥 ${seqAntes}) · o próximo erro zera`);
+          }
+        }
+        marca(s, anima);
+      }catch(e){}
+      return r;
+    };
+  }
+  embrulha('localAnswer');
+  embrulha('localTimeout');
+  // mostra as 3 pedras já no começo da partida
+  let ultS = null;
+  setInterval(() => { try{ const s = app.player && app.player.stats; if(s && app.mode !== 'teacher' && (s !== ultS || !document.querySelector('#playerPlay .pp-stats .seq-pedras'))){ ultS = s; marca(s); } }catch(e){} }, 500);
+})();
 
 return { CAT, POR_ID, LIMITE, dicaDe, fracEmPe, lacunas, G, C, REGRA, gerarQuestao, novoRegistro, iniciar, escolherFonte, registrar, resumo, estado, IMG, testarTrilha, alternativas };
 })();
