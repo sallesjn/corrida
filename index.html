@@ -15825,6 +15825,103 @@ if(typeof window !== 'undefined') (() => {
   setInterval(() => { try{ const s = app.player && app.player.stats; if(s && app.mode !== 'teacher' && (s !== ultS || !document.querySelector('#playerPlay .pp-stats .seq-pedras'))){ ultS = s; marca(s); } }catch(e){} }, 500);
 })();
 
+/* =========================================================================
+   CÁLCULO MENTAL PRIMEIRO
+   · Os alunos reclamaram de contas "de folha" (ex.: 2⁸, R$ 564 × ¾, 263.200 ÷ 470).
+   · Agora, nas atividades do 5º ano em diante, o jogo sorteia de novo (até 40
+     vezes) quando a questão sai pesada para fazer de cabeça:
+       – potência com resultado acima de 150 (menos as de base 10);
+       – resposta com 3 ou mais algarismos significativos (fácil e médio) ou
+         4 ou mais (difícil), quando há conta a fazer;
+       – dois números "grandes" (3+ algarismos significativos) no enunciado.
+     No nível difícil, 1 em cada 5 perguntas pode ser de folha (desafio).
+   · Diagnóstico: passa a perguntar no nível MÉDIO (antes: difícil). Continua
+     achando o degrau, mas assusta menos no começo.
+   Bloco novo: wrappers de gerarQuestao e escolherFonte.
+========================================================================= */
+REGRA.mentalAnoMin = 5;          // a partir de que ano o filtro vale
+REGRA.mentalFolhaN3 = 0.2;       // no difícil, chance de deixar passar uma "de folha"
+REGRA.mentalTentativas = 40;
+REGRA.nivelDiag = 2;             // nível das perguntas do diagnóstico
+
+const SUP = { '⁰': 0, '¹': 1, '²': 2, '³': 3, '⁴': 4, '⁵': 5, '⁶': 6, '⁷': 7, '⁸': 8, '⁹': 9 };
+function sigDig(s){
+  s = String(s).replace(/\.(?=\d{3}\b)/g, '').replace(',', '.');
+  const m = s.match(/^(\d*)\.?(\d*)$/); if(!m) return 0;
+  return (m[1] + m[2]).replace(/^0+/, '').replace(/0+$/, '').length;
+}
+function numerosDe(t){ return (String(t || '').replace(/\{\{(\d+)\/(\d+)\}\}/g, ' $1 $2 ').match(/\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:,\d+)?/g) || []); }
+function potenciaGrande(t){
+  const re = /(\d+)([⁰¹²³⁴⁵⁶⁷⁸⁹]+)/g; let m;
+  while((m = re.exec(String(t || '')))){
+    const b = +m[1], e = +[...m[2]].map(c => SUP[c]).join('');
+    if(b !== 10 && b > 1 && Math.pow(b, e) > 150) return true;
+  }
+  return false;
+}
+function questaoPesada(q, nivel){
+  if(!q || !q.options) return false;
+  const txt = String(q.text || '').replace(/<[^>]+>/g, ' ');
+  const resp = String(q.options[q.correct != null ? q.correct : q.correctIndex] || '');
+  if(potenciaGrande(txt)) return true;
+  const ns = numerosDe(txt).map(sigDig);
+  if(!ns.length) return false;                                         // só figura: nada a calcular de cabeça
+  const conta = /[×÷+−%·]|\{\{|\bde\b|\btotal|sobr|falta|cada|média|quant/i.test(txt) || ns.length >= 2;
+  const rs = Math.max(0, ...numerosDe(resp).map(sigDig));
+  if(conta && rs >= (nivel >= 3 ? 4 : 3)) return true;
+  if(nivel < 3 && ns.filter(x => x >= 3).length >= 2) return true;
+  if(nivel < 3 && /3,14/.test(txt) && rs >= 3) return true;
+  return false;
+}
+const gerarQuestaoSemMental = gerarQuestao;
+gerarQuestao = function(id, nivel){
+  const d = POR_ID[id];
+  let q = gerarQuestaoSemMental.apply(this, arguments);
+  try{
+    if(!d || (d.ano || 0) < REGRA.mentalAnoMin) return q;
+    const n = Math.max(1, Math.min(3, nivel || 1));
+    if(n >= 3 && Math.random() < REGRA.mentalFolhaN3) return q;        // de vez em quando, uma de folha no difícil
+    for(let k = 0; k < REGRA.mentalTentativas && questaoPesada(q, n); k++) q = gerarQuestaoSemMental.call(this, id, nivel);
+  }catch(e){}
+  return q;
+};
+const escolherFonteSemDiagMedio = escolherFonte;
+escolherFonte = function(rec, sorte){
+  const f = escolherFonteSemDiagMedio.apply(this, arguments);
+  if(f && f.tipo === 'diag') return Object.assign({}, f, { nivel: REGRA.nivelDiag });
+  return f;
+};
+estado.questaoPesada = questaoPesada;
+estado.gerarQuestaoMental = gerarQuestao;
+
+/* =========================================================================
+   CÓDIGO DA ATIVIDADE NA TELA DO ALUNO
+   · Canto superior direito do cartão da pergunta, pequeno e discreto:
+     "p6_potencia-N3" (mesmo código do histórico 📜 e do histórico do professor).
+   · Serve para o professor saber de qual atividade o aluno está reclamando.
+   Bloco novo: wrapper de app.renderPlayerQuestion e CSS.
+========================================================================= */
+if(typeof window !== 'undefined') (() => {
+  const st = document.createElement('style');
+  st.textContent = `
+  #ppQuestionCard{position:relative}
+  #ppCodAtiv{position:absolute;top:6px;right:12px;font-size:11px;font-weight:700;color:#64748b;letter-spacing:.3px;pointer-events:none;user-select:text;z-index:2}`;
+  document.head.appendChild(st);
+  const render0 = app.renderPlayerQuestion;
+  app.renderPlayerQuestion = function(q){
+    const r = render0.apply(this, arguments);
+    try{
+      const card = $('ppQuestionCard'); if(!card) return r;
+      let el = $('ppCodAtiv');
+      if(!el){ el = document.createElement('div'); el.id = 'ppCodAtiv'; card.appendChild(el); }
+      const id = q && q.trilha ? q.trilha.id : (q && q.type) || '';
+      const n = q && q.trilha ? q.trilha.nivel : 0;
+      el.textContent = id ? id + (n ? '-N' + n : '') : '';
+    }catch(e){}
+    return r;
+  };
+})();
+
 return { CAT, POR_ID, LIMITE, dicaDe, fracEmPe, lacunas, G, C, REGRA, gerarQuestao, novoRegistro, iniciar, escolherFonte, registrar, resumo, estado, IMG, testarTrilha, alternativas };
 })();
 
